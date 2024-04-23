@@ -31,3 +31,7 @@ $ git clone <repo url>
 $ cd <repo path>
 $ pip install -e .
 ```
+
+## Development
+For formatting, I recommand using `black` and `flake8`.
+To configure `flake8` to use the `pyproject.toml` file, you can use the `flake8-pyproject` library.

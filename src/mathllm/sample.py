@@ -1,13 +1,13 @@
-
 import torch
+import torch.nn.functional as F
 
 
-#--------------------------------------------------------------------------------
+# -------------------------------------------------------------------------------
 # Language Generation
-#--------------------------------------------------------------------------------
+# -------------------------------------------------------------------------------
 
 # encode sentence to tokens indices
-def language_generator(prompts, tokenizer, model, seq_len, random=False, temperature=1., device='cuda'):
+def language_generator(prompts, tokenizer, model, seq_len, random=False, temperature=1.0, device="cuda"):
     """
     Generate new tokens from the model given a prompt.
 
@@ -27,7 +27,7 @@ def language_generator(prompts, tokenizer, model, seq_len, random=False, tempera
         temperature of the softmax distribution. Only used if random is True
     device: str, default is 'cuda'
         device to use for the model
-    
+
     Returns
     -------
     list of str
@@ -37,11 +37,14 @@ def language_generator(prompts, tokenizer, model, seq_len, random=False, tempera
         prompts = [prompts]
 
     if random:
+
         def choose_token_from_logit(logits):
             logits /= temperature
             probs = F.softmax(logits, dim=-1)
             return torch.multinomial(probs, num_samples=1)
+
     else:
+
         def choose_token_from_logit(logits):
             return torch.argmax(logits, dim=-1, keepdim=True)
 
@@ -54,8 +57,8 @@ def language_generator(prompts, tokenizer, model, seq_len, random=False, tempera
     seq_idx = torch.zeros((nb_sentences, max_len), dtype=torch.long, device=device)
     mask = torch.zeros((nb_sentences, max_len - min_len), dtype=torch.bool, device=device)
     for i, seq in enumerate(tokens):
-        seq_idx[i, :len(seq)] = torch.tensor(seq, dtype=torch.long, device=device)
-        mask[i, :len(seq) - min_len] = 1
+        seq_idx[i, : len(seq)] = torch.tensor(seq, dtype=torch.long, device=device)
+        mask[i, : len(seq) - min_len] = 1
 
     for i in range(min_len, max_len):
         logits = model(seq_idx[:, :i])[:, -1, :]
