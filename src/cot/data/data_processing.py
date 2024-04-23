@@ -149,24 +149,49 @@ class Parity:
             data[indices[i] : indices[i + 1], : 2 * seq_len + 1] = np.load(RAW_DIR / f"parity/{prefix}_{seq_len}.npy")
         return data, indices
 
-    def generate_train_data(train_data, indices, length_proba, nb_data, rng=None):
-        pass
+    def load_train_data(self, lengths):
+        """
+        Load training data.
 
-    def former_generate_train_data(cls, length_proba=None, nb_data=None, random=True, rng=None):
-        if rng is None:
-            rng = np.random.default_rng()
+        Endows `self` with attributes `train_data` and `indices`.
+        """
+        self.train_data, self.indices = self.load_test_data(lengths, data_type="train")
 
-        nb_seq_by_len = rng.multinomial(nb_data, length_proba)
-        max_len = 2 * len(nb_seq_by_len) + 2
-        data = np.full((nb_data, max_len), 3, dtype=np.int32)
-        # generate data for each length
-        ind_data = 0
-        for seq_len, nb_seq in enumerate(nb_seq_by_len):
-            seq_len += 1
-            data[ind_data : ind_data + nb_seq, : 2 * seq_len + 1] = cls.generate_fixed_length_data(
-                seq_len, nb_data=nb_seq, random=True, rng=rng
-            )
-            ind_data += nb_seq
-        # shuffle data
-        rng.shuffle(data)
-        return data
+    def set_data_probas(self, probas_by_len):
+        """
+        Set the probability of each data point.
+
+        Endows `self` with attributes `proba_by_data`.
+
+        Parameters
+        ----------
+        probas_by_len : list of numpy.ndarray
+            Probability vector to sample of sequence of a given length.
+        """
+        self.probas_by_data = np.empty(self.indices[-1])
+        for i in range(len(probas_by_len)):
+            start, end = self.indices[i], self.indices[i + 1]
+            if start != end:
+                self.probas_by_data[start:end] = probas_by_len[i] / (end - start)
+
+    def get_batch(self, batch_size):
+        """
+        Get a batch of data.
+
+        Parameters
+        ----------
+        batch_size : int
+            Size of the batch.
+
+        Returns
+        -------
+        batch : numpy.ndarray
+            Batch of data.
+
+        Notes
+        -----
+        Should be called after `load_train_data` and `set_data_probas`.
+        """
+        indices = np.arange(len(self.train_data))
+        batch_indices = np.random.choice(indices, size=batch_size, p=self.probas_by_data, replace=True)
+        return self.train_data[batch_indices]
