@@ -17,9 +17,16 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 dependencies = [
+    "black",
+    "flake8",
+    "flake8-pyproject",
+    "isort",
     "matplotlib",
     "numpy",
+    "sentencepiece",
+    "tiktoken",
     "torch",
+    "transformers",
 ]
 
 [project.urls]
@@ -34,6 +41,11 @@ profile = "black"
 
 [tool.flake8]
 max-line-length = 120
+ignore = [
+    "E203",  # whitespace before ':'
+    "E722",  # do not use bare 'except'
+    "W503",  # line break before binary operator
+]
 per-file-ignores = [
     '__init__.py:F401',
 ]

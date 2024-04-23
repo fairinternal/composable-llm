@@ -1,5 +1,6 @@
 
-data/
+data/raw
+data/processed
 
 *.egg-info
 *__pycache__

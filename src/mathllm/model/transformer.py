@@ -17,6 +17,7 @@ This source code is licensed under the MIT license found in the LICENSE file in 
 
 @ 2023, Vivien Cabannes
 """
+
 import math
 from dataclasses import dataclass
 
@@ -29,15 +30,15 @@ from .utils import (
     RMSNorm,
 )
 
-
-#--------------------------------------------------------------------------------
+# -------------------------------------------------------------------------------
 # Attention Layers
-#--------------------------------------------------------------------------------
+# -------------------------------------------------------------------------------
+
 
 class Attention(nn.Module):
     """
     Attention layer.
-    
+
     Parameters
     ----------
     attention_type: str
@@ -71,6 +72,7 @@ class Attention(nn.Module):
     - Implement caching behavior when processing a sentence token by token at inference time (only feed next token).
     - Check sliding window implementation.
     """
+
     def __init__(self, attention_type, config):
         super().__init__()
 
@@ -79,7 +81,7 @@ class Attention(nn.Module):
         self.H = config.n_head
         self.D = config.attn_downsampling
         E = config.emb_dim
-        
+
         # matrices
         bias = config.attn_bias
         self.query = nn.Linear(E, E, bias=bias)
@@ -89,7 +91,10 @@ class Attention(nn.Module):
 
         # attention type: causal, self or cross
         self.causal = config.causal
-        assert attention_type.lower() in ['self', 'cross'], f"attention type must be either 'self' or 'cross', not {attention_type}"
+        assert attention_type.lower() in [
+            "self",
+            "cross",
+        ], f"attention type must be either 'self' or 'cross', not {attention_type}"
         setattr(self, "forward", getattr(self, f"{attention_type.lower()}_attention"))
 
         # flash attention implementation and attention mask
@@ -100,7 +105,7 @@ class Attention(nn.Module):
             mask = torch.ones(L, L)
             mask = torch.tril(mask, diagonal=0)
             if config.sliding_window:
-                mask = torch.triu(mask, diagonal=-config.sliding_window+1)
+                mask = torch.triu(mask, diagonal=-config.sliding_window + 1)
             self.register_buffer("mask", mask.view(1, 1, L, L) == 0)
         else:
             # note that one might want to use masking with cross attention
@@ -115,14 +120,12 @@ class Attention(nn.Module):
         if self.rope:
             self.L = config.seq_len
             self.theta = config.rope_theta
-            self.register_buffer("rope_angles", self.get_rope_freqs(
-                self.L, E // self.H, self.theta
-            ))
+            self.register_buffer("rope_angles", self.get_rope_freqs(self.L, E // self.H, self.theta))
 
     def attention(self, q, k, v):
         """
         Attention mechanism.
-        
+
         Parameters
         ----------
         q: torch.Tensor of size (N, L, E)
@@ -161,9 +164,9 @@ class Attention(nn.Module):
         if not self.flash:
             # classical implementation
             # (N, H, L, E / H) @ (N, H, E / H, L) -> (N, H, L, L)
-            attn = q @ k.transpose(-1, -2) / math.sqrt(E // H) 
+            attn = q @ k.transpose(-1, -2) / math.sqrt(E // H)
             if self.causal:
-                attn = attn.masked_fill(self.mask[..., :L, :L], float('-inf'))
+                attn = attn.masked_fill(self.mask[..., :L, :L], float("-inf"))
             attn = F.softmax(attn, dim=-1)
             # (N, H, L, S) @ (N, H, S, E / H) -> (N, H, L, E / H)
             z = attn @ v
@@ -227,22 +230,20 @@ class Attention(nn.Module):
         """
         freqs = 1.0 / (theta ** (torch.arange(0, fan_out - 1, 2) / fan_out))
         t = torch.arange(seq_len)
-        out = (t.unsqueeze(-1) * freqs.unsqueeze(0))
+        out = t.unsqueeze(-1) * freqs.unsqueeze(0)
         out = torch.polar(torch.ones_like(out), out)
         return out
 
     def rope_view(self, qk):
         """
-        Recast tensor to complex numbers and apply rotational position filter. 
+        Recast tensor to complex numbers and apply rotational position filter.
         """
         N, H, LS, dim = qk.size()
         assert LS <= self.rope_angles.size(0), "sequence length is too long for rope attention"
 
         # Handling typing bad behavior (complex.half() -> complex.real().half())
         if self.rope_angles.dtype in [torch.float16, torch.float32]:
-            self.rope_angles = self.get_rope_freqs(
-                self.L, dim, self.theta
-            ).to(device=self.rope_angles.device)
+            self.rope_angles = self.get_rope_freqs(self.L, dim, self.theta).to(device=self.rope_angles.device)
 
         # need fixed type for torch.view_as_complex to work properly
         qk_complex = torch.view_as_complex(qk.float().reshape(N, H, LS, dim // 2, 2))
@@ -250,32 +251,37 @@ class Attention(nn.Module):
         qk = qk_rot.type_as(qk)
         return qk
 
+
 class SelfAttention(Attention):
     """
     Self-Attention Layer.
-    
+
     Notes
     -----
     See Attention layer for detailed docstring.
     """
+
     def __init__(self, config):
         Attention.__init__(self, "self", config)
+
 
 class CrossAttention(Attention):
     """
     Cross-Attention Layer.
-    
+
     Notes
     -----
     See Attention layer for detailed docstring.
     """
+
     def __init__(self, config):
         Attention.__init__(self, "cross", config)
 
 
-#--------------------------------------------------------------------------------
+# --------------------------------------------------------------------------------
 # Feed-forward Layers
-#--------------------------------------------------------------------------------
+# --------------------------------------------------------------------------------
+
 
 class FeedForward(nn.Module):
     """
@@ -295,6 +301,7 @@ class FeedForward(nn.Module):
         ffn_dropout: float
             dropout probability
     """
+
     def __init__(self, config):
         super().__init__()
         self.fc1 = nn.Linear(config.emb_dim, config.ffn_dim, bias=config.ffn_bias)
@@ -323,14 +330,15 @@ class FeedForward(nn.Module):
         return out
 
 
-#--------------------------------------------------------------------------------
+# --------------------------------------------------------------------------------
 # Transformer Block
-#--------------------------------------------------------------------------------
+# --------------------------------------------------------------------------------
+
 
 class TransformerBlock(nn.Module):
     """
     Transformer block.
-    
+
     Parameters
     ----------
     config: configuration class with
@@ -351,6 +359,7 @@ class TransformerBlock(nn.Module):
     Attention
     FeedForward
     """
+
     def __init__(self, config):
         super().__init__()
         match config.norm.lower():
@@ -377,14 +386,15 @@ class TransformerBlock(nn.Module):
         return out
 
 
-#--------------------------------------------------------------------------------
+# --------------------------------------------------------------------------------
 # Embedding Module
-#--------------------------------------------------------------------------------
+# --------------------------------------------------------------------------------
+
 
 class Embedding(nn.Module):
     """
     Embedding layer.
-    
+
     Parameters
     ----------
     config: configuration class with
@@ -399,6 +409,7 @@ class Embedding(nn.Module):
         emb_dropout: float
             dropout probability for the embeddings layer
     """
+
     def __init__(self, config):
         super().__init__()
 
@@ -409,9 +420,7 @@ class Embedding(nn.Module):
         if config.pos_emb:
             self.L = config.seq_len
             self.pos_emb = nn.Embedding(self.L, config.emb_dim)
-            self.register_buffer(
-                "position", torch.arange(self.L)
-            )
+            self.register_buffer("position", torch.arange(self.L))
         else:
             self.pos_emb = None
 
@@ -428,14 +437,15 @@ class Embedding(nn.Module):
         return out
 
 
-#--------------------------------------------------------------------------------
+# --------------------------------------------------------------------------------
 # Transformer Architecture
-#--------------------------------------------------------------------------------
+# --------------------------------------------------------------------------------
+
 
 class CausalTransformer(nn.Module):
     """
     Decoder only transformer.
-    
+
     Parameters
     ----------
     config: configuration class with
@@ -456,14 +466,13 @@ class CausalTransformer(nn.Module):
     Embedding
     TransformerBlock
     """
+
     def __init__(self, config):
         super().__init__()
 
         self.embeddings = Embedding(config)
 
-        self.blocks = nn.ModuleList(
-            [TransformerBlock(config) for _ in range(config.n_layer)]
-        )
+        self.blocks = nn.ModuleList([TransformerBlock(config) for _ in range(config.n_layer)])
         match config.norm.lower():
             case "layer":
                 NormLayer = LayerNorm
@@ -491,9 +500,10 @@ class CausalTransformer(nn.Module):
         return out
 
 
-#--------------------------------------------------------------------------------
+# --------------------------------------------------------------------------------
 # Configuration Class
-#--------------------------------------------------------------------------------
+# --------------------------------------------------------------------------------
+
 
 @dataclass
 class TransformerConfig:
@@ -540,7 +550,7 @@ class TransformerConfig:
 
         # flash attention in PyTorch
         if self.flash is None:
-            self.flash = torch.__version__ >= '2'
+            self.flash = torch.__version__ >= "2"
 
         # single dropout parameter
         if self.emb_dropout is None:

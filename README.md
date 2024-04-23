@@ -34,4 +34,15 @@ $ pip install -e .
 
 ## Development
 For formatting, I recommand using `black` and `flake8`.
-To configure `flake8` to use the `pyproject.toml` file, you can use the `flake8-pyproject` library.
+To configure `flake8` through the `pyproject.toml` file, you can use the `flake8-pyproject` library.
+
+## Organization
+The main code is in the `src` folder.
+Other folders include:
+- `data`: contains data used in the experiments.
+- `launchers`: contains bash scripts to launch experiments
+- `models`: saves models' weights.
+- `notebooks`: used for exploration and visualization.
+- `scripts`: contains python scripts to run experiments.
+- `tests`: contains tests for the code.
+- `tutorial`: contains tutorial notebooks to get started with LLMs' training.
