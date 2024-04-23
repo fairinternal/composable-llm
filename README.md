@@ -1,5 +1,12 @@
 # Compositionality 
 
+## TODOS
+
+- [ ] Write training code for the parity problem
+- [ ] Implement dataloader for the copying problem
+- [ ] Make sure that everything run smoothly and fast on the cluster
+- [ ] Implement scripts for grid experiments
+
 ## Objective
 
 Push a learning perspective linked with compositionality.
@@ -7,6 +14,9 @@ Push a learning perspective linked with compositionality.
 - Stay grounded by prioritizing experiments first.
 - Stay focus by reasoning with and on LLMs first, notably through math tasks.
 - Ultimatively we would like to shed lights on mechanisms that allow to learn and compose concepts, so to build better reasoning systems.
+
+TODO:
+- we will keep several sub-repo for different projects, with the aim to have some transversal tools for all of them (experimental setup, models, progress measures...)
 
 ## Installation
 
