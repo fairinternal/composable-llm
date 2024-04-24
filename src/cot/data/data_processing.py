@@ -5,6 +5,8 @@ Generate synthetic data to study LLM behaviors in controlled settings.
 import logging
 
 import numpy as np
+import torch
+from torch.utils.data import Dataset, WeightedRandomSampler
 
 from cot.config import RAW_DIR
 
@@ -15,29 +17,31 @@ logger = logging.getLogger(__name__)
 # -----------------------------------------------------------------------------
 
 
-class SequenceGenerator:
-    def __init__(self, data_dir=None):
-        if data_dir is None:
-            data_dir = RAW_DIR
-        self.data_dir = data_dir
-        self.data_dir.mkdir(parents=True, exist_ok=True)
-        self.prefix = None
+class SequenceGenerator(Dataset):
+    data_dir = RAW_DIR
+    prefix = None
 
-    def generate_fixed_len_data(self, seq_len, nb_data, rng=None):
+    def __init__(self):
+        pass
+
+    @classmethod
+    def generate_fixed_len_data(cls, seq_len, nb_data, rng=None):
         """Generate sequence with fixed sequence length."""
         raise NotImplementedError
 
-    def get_len(self, seq_len):
+    @classmethod
+    def get_len(cls, seq_len):
         """Full sequence length."""
         raise NotImplementedError
 
-    def generate_datafiles(self, max_nb_data, split_probas_by_len, rng=None):
+    @classmethod
+    def generate_datafiles(cls, max_nb_data_per_len, split_probas_by_len, rng=None):
         """
         Test/train split.
 
         Parameters
         ----------
-        max_nb_data : int
+        max_nb_data_per_len : int
             Maximum number of data points to generate for each sequence length.
         split_probas_by_len : list of float
             Proportion of data to put in the training set for each sequence length.
@@ -48,15 +52,16 @@ class SequenceGenerator:
         if rng is None:
             rng = np.random.default_rng()
 
+        cls.data_dir.mkdir(parents=True, exist_ok=True)
         for seq_len, split_proba in enumerate(split_probas_by_len):
             seq_len += 1
-            data = self.generate_fixed_len_data(seq_len=seq_len, nb_data=max_nb_data, rng=rng)
-            np.save(self.data_dir / f"data_{seq_len}.npy", data)
+            data = cls.generate_fixed_len_data(seq_len=seq_len, nb_data=max_nb_data_per_len, rng=rng)
+            np.save(cls.data_dir / f"data_{seq_len}.npy", data)
             rng.shuffle(data)
             nb_train = int(split_proba * len(data))
-            np.save(self.data_dir / f"train_{seq_len}.npy", data[:nb_train])
-            np.save(self.data_dir / f"test_{seq_len}.npy", data[nb_train:])
-            logger.info(f"Sequences of length {seq_len} done. Saved in {self.data_dir} ({nb_train}/{len(data)} split).")
+            np.save(cls.data_dir / f"train_{seq_len}.npy", data[:nb_train])
+            np.save(cls.data_dir / f"test_{seq_len}.npy", data[nb_train:])
+            logger.info(f"Sequences of length {seq_len} done. Saved in {cls.data_dir} ({nb_train}/{len(data)} split).")
 
     def load_data(self, lengths, data_type=None):
         """
@@ -111,7 +116,7 @@ class SequenceGenerator:
             )
         return data, indices
 
-    def set_train_data(self, lengths):
+    def set_data(self, lengths, data_type):
         """
         Load training data as a class attribute.
 
@@ -121,12 +126,16 @@ class SequenceGenerator:
         ----------
         lengths : list of int
             List of sequence lengths.
+        data_type : str
+            Type of data to load. Whether 'train', 'test' or 'all'.
 
         Notes
         -----
-        Should be called after `load_data`.
+        Should be called after `generate_datafiles`.
         """
-        self.train_data, self.indices = self.load_data(lengths, data_type="train")
+        train_data, indices = self.load_data(lengths, data_type=data_type)
+        self.data = torch.from_numpy(train_data)
+        self.indices = torch.from_numpy(indices)
 
     def set_data_probas(self, probas_by_len):
         """
@@ -143,33 +152,54 @@ class SequenceGenerator:
         -----
         Should be called after `set_train_data`.
         """
-        self.probas_by_data = np.empty(self.indices[-1])
+
+        assert abs(sum(probas_by_len) - 1) < 1e-6, "The sum of the probabilities must be equal to 1."
+
+        self.probas = torch.empty(self.indices[-1])
         for i in range(len(probas_by_len)):
             start, end = self.indices[i], self.indices[i + 1]
             if start != end:
-                self.probas_by_data[start:end] = probas_by_len[i] / (end - start)
+                self.probas[start:end] = probas_by_len[i] / (end - start)
 
-    def get_batch(self, batch_size):
+    def set_as_trainset(self, lengths, probas_by_len):
         """
-        Get a batch of data.
+        Data generation processing.
 
         Parameters
         ----------
-        batch_size : int
-            Size of the batch.
-
-        Returns
-        -------
-        batch : numpy.ndarray
-            Batch of data.
-
-        Notes
-        -----
-        Should be called after `load_train_data` and `set_data_probas`.
+        lengths : list of int
+            List of sequence lengths.
+        probas_by_len : list of numpy.ndarray
+            Probability vector to sample a sequence of a given length.
+        rng : numpy.random.Generator, optional
+            Random number generator. If None, use the default generator.
         """
-        indices = np.arange(len(self.train_data))
-        batch_indices = np.random.choice(indices, size=batch_size, p=self.probas_by_data, replace=True)
-        return self.train_data[batch_indices]
+
+        logger.info("Loading training data.")
+        self.set_data(lengths, data_type="train")
+
+        logger.info("Setting sampler.")
+        self.set_data_probas(probas_by_len)
+        self.sampler = WeightedRandomSampler(self.probas, len(self.data))
+
+    def set_as_testset(self, lengths):
+        """
+        Data loading processing.
+
+        Parameters
+        ----------
+        lengths : list of int
+            List of sequence lengths.
+        """
+
+        logger.info(f"Loading test data for {self.prefix} problem.")
+        self.set_data(lengths, data_type="test")
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, idx):
+        return self.data[idx]
 
 
 # -----------------------------------------------------------------------------
@@ -178,13 +208,14 @@ class SequenceGenerator:
 
 
 class BinaryCopy(SequenceGenerator):
-    def __init__(self, data_dir=RAW_DIR):
-        super().__init__(data_dir)
-        self.prefix = "binary_copy"
-        self.data_dir = data_dir / self.prefix
-        self.data_dir.mkdir(parents=True, exist_ok=True)
+    prefix = "binary_copy"
+    data_dir = SequenceGenerator.data_dir / prefix
 
-    def generate_fixed_len_data(self, seq_len, nb_data, rng=None):
+    def __init__(self):
+        super().__init__()
+
+    @classmethod
+    def generate_fixed_len_data(cls, seq_len, nb_data, rng=None):
         """
         Generate parity data with fixed sequence length.
 
@@ -212,7 +243,7 @@ class BinaryCopy(SequenceGenerator):
         # allocate memory
         if 2**seq_len < nb_data:
             nb_data = 2**seq_len
-        length = self.get_len(seq_len)
+        length = cls.get_len(seq_len)
         data = np.empty((nb_data, length), dtype=np.int32)
 
         # input data
@@ -231,21 +262,24 @@ class BinaryCopy(SequenceGenerator):
         data[:, seq_len + 1 :] = data[:, :seq_len]
         return data
 
+    @classmethod
     def get_len(cls, seq_len):
         """Full sequence length."""
         return 2 * seq_len + 1
 
 
 class Copy(SequenceGenerator):
-    def __init__(self, vocab_size, data_dir=None):
-        super().__init__(data_dir)
-        self.prefix = "copy_{vocab_size}"
-        self.data_dir = data_dir / self.prefix
-        self.data_dir.mkdir(parents=True, exist_ok=True)
+    prefix = "copy"
+    data_dir = SequenceGenerator.data_dir / prefix
+    vocab_size = 10
 
-        self.vocab_size = vocab_size
+    def __init__(self, vocab_size=None):
+        super().__init__()
+        if vocab_size is not None:
+            Copy.vocab_size = vocab_size
 
-    def generate_fixed_len_data(self, seq_len, nb_data, rng=None):
+    @classmethod
+    def generate_fixed_len_data(cls, seq_len, nb_data, rng=None):
         """
         Generate parity data with fixed sequence length.
 
@@ -267,13 +301,15 @@ class Copy(SequenceGenerator):
                 x: some token,
                 `vocab_size`: end of input.
         """
+        logger.info(f"Generating data with vocabulary of size {cls.vocab_size}.")
+
         if rng is None:
             rng = np.random.default_rng()
 
         # input
-        length = self.get_len(seq_len)
+        length = cls.get_len(seq_len)
         data = np.empty((nb_data, length), dtype=np.int32)
-        data[:, :seq_len] = (rng.random((nb_data, seq_len)) * self.vocab_size).astype(np.int32)
+        data[:, :seq_len] = (rng.random((nb_data, seq_len)) * cls.vocab_size).astype(np.int32)
 
         # end of input
         data[:, seq_len] = 2
@@ -282,6 +318,7 @@ class Copy(SequenceGenerator):
         data[:, seq_len + 1 :] = data[:, :seq_len]
         return data
 
+    @classmethod
     def get_len(cls, seq_len):
         """Full sequence length."""
         return 2 * seq_len + 1
@@ -293,13 +330,14 @@ class Copy(SequenceGenerator):
 
 
 class Parity(SequenceGenerator):
-    def __init__(self, data_dir=None):
-        super().__init__(data_dir)
-        self.prefix = "parity"
-        self.data_dir = data_dir / self.prefix
-        self.data_dir.mkdir(parents=True, exist_ok=True)
+    prefix = "parity"
+    data_dir = SequenceGenerator.data_dir / prefix
 
-    def generate_fixed_len_data(self, seq_len, nb_data, rng=None):
+    def __init__(self):
+        super().__init__()
+
+    @classmethod
+    def generate_fixed_len_data(cls, seq_len, nb_data, rng=None):
         """
         Generate parity data with fixed sequence length.
 
@@ -328,7 +366,7 @@ class Parity(SequenceGenerator):
         # allocate memory
         if 2**seq_len < nb_data:
             nb_data = 2**seq_len
-        length = self.get_len(seq_len)
+        length = cls.get_len(seq_len)
         data = np.empty((nb_data, length), dtype=np.int32)
 
         # input data
@@ -347,6 +385,7 @@ class Parity(SequenceGenerator):
         data[:, seq_len + 1 :] = np.cumsum(data[:, :seq_len], axis=1) % 2
         return data
 
+    @classmethod
     def get_len(cls, seq_len):
         """Full sequence length."""
         return 2 * seq_len + 1
