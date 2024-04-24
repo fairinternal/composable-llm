@@ -4,6 +4,7 @@
 
 Middle term goals:
 - [ ] Write training loop
+    - Implement a transformer and an efficient training loop for transformer with causal masking.
 - [ ] Write cluster scripts
 - [ ] Make sure that everything run smoothly and fast on the cluster
 - [ ] Launch first grid experiments
