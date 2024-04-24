@@ -28,7 +28,7 @@ Here is some installation instruction:
 ```bash
 $ conda create -n llm
 $ conda activate llm
-$ conda install python=3.11 pip
+$ conda install pip
 ```
 - Install Pytorch and check CUDA support: be mindful to install a version that is compatible with your CUDA driver ([example](https://docs.nvidia.com/cuda/archive/12.1.0/cuda-toolkit-release-notes/)) (use `nvidia-smi` to check your CUDA driver)
 ```bash
@@ -44,8 +44,9 @@ $ pip install -e .
 ```
 
 ## Development
-For formatting, I recommand using `black` and `flake8`.
+For formatting, I recommand using `black`, `flake8`, and `isort`.
 To configure `flake8` through the `pyproject.toml` file, you can use the `flake8-pyproject` library.
+Consider automatic formatting when saving files (easy to setup in VSCode, ask ChatGPT to get set up if not confortable with VSCode configuration).
 
 ## Organization
 The main code is in the `src` folder.
