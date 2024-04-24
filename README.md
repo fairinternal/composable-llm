@@ -3,12 +3,10 @@
 ## TODOS
 
 Middle term goals:
-- [ ] Write training code
+- [ ] Write training loop
+- [ ] Write cluster scripts
 - [ ] Make sure that everything run smoothly and fast on the cluster
-- [ ] Implement scripts for grid experiments
-
-Issues that are less important:
-- Improve dataloader by making it more inline with pytorch internals.
+- [ ] Launch first grid experiments
 
 ## Objective
 
