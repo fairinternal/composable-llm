@@ -2,10 +2,13 @@
 
 ## TODOS
 
-- [ ] Write training code for the parity problem
-- [ ] Implement dataloader for the copying problem
+Middle term goals:
+- [ ] Write training code
 - [ ] Make sure that everything run smoothly and fast on the cluster
 - [ ] Implement scripts for grid experiments
+
+Issues that are less important:
+- Improve dataloader by making it more inline with pytorch internals.
 
 ## Objective
 

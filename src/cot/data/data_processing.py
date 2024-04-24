@@ -11,98 +11,56 @@ from cot.config import RAW_DIR
 logger = logging.getLogger(__name__)
 
 # -----------------------------------------------------------------------------
-# Copy problem
-# -----------------------------------------------------------------------------
-
-# Be exhaustive with 0/1 sequences.
-# Be exhaustive with all the sequences over a vocabulary of size K.
-# Take random sequences over a larger vocabulary.
-
-
-# -----------------------------------------------------------------------------
-# Parity problem data generation
+# Generic class
 # -----------------------------------------------------------------------------
 
 
-class Parity:
-    def generate_fixed_length_data(cls, seq_len, nb_data=None, random=True, rng=None):
+class SequenceGenerator:
+    def __init__(self, data_dir=None):
+        if data_dir is None:
+            data_dir = RAW_DIR
+        self.data_dir = data_dir
+        self.data_dir.mkdir(parents=True, exist_ok=True)
+        self.prefix = None
+
+    def generate_fixed_len_data(self, seq_len, nb_data, rng=None):
+        """Generate sequence with fixed sequence length."""
+        raise NotImplementedError
+
+    def get_len(self, seq_len):
+        """Full sequence length."""
+        raise NotImplementedError
+
+    def generate_datafiles(self, max_nb_data, split_probas_by_len, rng=None):
         """
-        Generate parity data with fixed sequence length.
+        Test/train split.
 
         Parameters
         ----------
-        seq_len : int
-            Length of the sequence.
-        nb_data : int
-            Number of data points to generate.
-        random : bool, optional
-            If True, generate random data. If False, generate all possible sequences.
-        rng : numpy.random.Generator, optional
-            Random number generator. If None, use the default generator.
-
-        Returns
-        -------
-        data: numpy.ndarray
-            Generated data containing sequence of tokens with
-                0: zero bit,
-                1: one bit,
-                2: end of input.
-        """
-        if rng is None:
-            rng = np.random.default_rng()
-
-        # Input data
-        if random:
-            assert nb_data is not None, "nb_data must be provided if random is True."
-            data = np.empty((nb_data, 2 * seq_len + 1), dtype=np.int32)
-            data[:, :seq_len] = (rng.random((nb_data, seq_len)) > 0.5).astype(np.int32)
-        else:
-            assert nb_data is None, "nb_data must be None if random is False."
-            nb_data = 2**seq_len
-            data = np.empty((nb_data, 2 * seq_len + 1), dtype=np.int32)
-            all_seq = np.arange(nb_data).reshape(-1, 1)
-            powers_of_two = 2 ** np.arange(seq_len)
-            data[:, :seq_len] = (all_seq & powers_of_two != 0).astype(np.int32)
-
-        # End of input
-        data[:, seq_len] = 2
-
-        # CoT data
-        data[:, seq_len + 1 :] = np.cumsum(data[:, :seq_len], axis=1) % 2
-        return data
-
-    def test_train_split(cls, split_probas_by_len, rng=None):
-        """
-        Test/train split
-
-        Parameters
-        ----------
+        max_nb_data : int
+            Maximum number of data points to generate for each sequence length.
         split_probas_by_len : list of float
             Proportion of data to put in the training set for each sequence length.
-        data_dir : pathlib.Path
-            Directory where to save the data.
         rng : numpy.random.Generator, optional
             Random number generator. If None, use the default generator.
         """
-        data_dir = RAW_DIR / "parity"
-        data_dir.mkdir(parents=True, exist_ok=True)
 
         if rng is None:
             rng = np.random.default_rng()
 
         for seq_len, split_proba in enumerate(split_probas_by_len):
             seq_len += 1
-            data = cls.generate_fixed_length_data(seq_len, nb_data=None, random=False, rng=rng)
-            np.save(data_dir / f"data_{seq_len}.npy", data)
+            data = self.generate_fixed_len_data(seq_len=seq_len, nb_data=max_nb_data, rng=rng)
+            np.save(self.data_dir / f"data_{seq_len}.npy", data)
             rng.shuffle(data)
             nb_train = int(split_proba * len(data))
-            np.save(data_dir / f"train_{seq_len}.npy", data[:nb_train])
-            np.save(data_dir / f"test_{seq_len}.npy", data[nb_train:])
-            logger.info(f"Sequences of length {seq_len} done")
+            np.save(self.data_dir / f"train_{seq_len}.npy", data[:nb_train])
+            np.save(self.data_dir / f"test_{seq_len}.npy", data[nb_train:])
+            logger.info(f"Sequences of length {seq_len} done. Saved in {self.data_dir} ({nb_train}/{len(data)} split).")
 
-    def load_test_data(cls, lengths, data_type=None):
+    def load_data(self, lengths, data_type=None):
         """
-        Load test data.
+        Get data (load from data directory).
 
         Parameters
         ----------
@@ -115,12 +73,14 @@ class Parity:
         -------
         data : numpy.ndarray
             Data containing sequence of tokens with
-                0: zero bit,
-                1: one bit,
-                2: end of input,
-                3: end of sequence.
+                -1: end of sequence,
+                the token generated by `generate_fixed_length_data`.
         indices : numpy.ndarray
             Indices to split the data by sequence length.
+
+        Notes
+        -----
+        Should be called after `generate_datafiles`.
         """
         assert isinstance(lengths, list), "`lenghts` must be an a list of int."
         assert data_type in ["train", "test", "all"], "`data_type` must be 'train', 'test' or 'all'."
@@ -133,7 +93,7 @@ class Parity:
         # ... compute the data size by lenghts
         nb_data_by_lens = np.empty(len(lengths))
         for i, seq_len in enumerate(lengths):
-            filename = RAW_DIR / f"parity/{prefix}_{seq_len}.npy"
+            filename = self.data_dir / f"{prefix}_{seq_len}.npy"
             with open(filename, "rb") as f:
                 version = np.lib.format.read_magic(f)
                 header = np.lib.format._read_array_header(f, version)
@@ -142,20 +102,31 @@ class Parity:
         # ... deduce memory allocation
         indices = np.cumsum(nb_data_by_lens, dtype=int)
         indices = np.insert(indices, 0, 0)
-        data = np.full((indices[-1], 2 * max(lengths) + 2), 3, dtype=np.int32)
+        data = np.full((indices[-1], self.get_len(max(lengths)) + 1), -1, dtype=np.int32)
 
         # load the data in the allocated memory
         for i, seq_len in enumerate(lengths):
-            data[indices[i] : indices[i + 1], : 2 * seq_len + 1] = np.load(RAW_DIR / f"parity/{prefix}_{seq_len}.npy")
+            data[indices[i] : indices[i + 1], : self.get_len(seq_len)] = np.load(
+                self.data_dir / f"{prefix}_{seq_len}.npy"
+            )
         return data, indices
 
-    def load_train_data(self, lengths):
+    def set_train_data(self, lengths):
         """
-        Load training data.
+        Load training data as a class attribute.
 
         Endows `self` with attributes `train_data` and `indices`.
+
+        Parameters
+        ----------
+        lengths : list of int
+            List of sequence lengths.
+
+        Notes
+        -----
+        Should be called after `load_data`.
         """
-        self.train_data, self.indices = self.load_test_data(lengths, data_type="train")
+        self.train_data, self.indices = self.load_data(lengths, data_type="train")
 
     def set_data_probas(self, probas_by_len):
         """
@@ -167,6 +138,10 @@ class Parity:
         ----------
         probas_by_len : list of numpy.ndarray
             Probability vector to sample of sequence of a given length.
+
+        Notes
+        -----
+        Should be called after `set_train_data`.
         """
         self.probas_by_data = np.empty(self.indices[-1])
         for i in range(len(probas_by_len)):
@@ -195,3 +170,183 @@ class Parity:
         indices = np.arange(len(self.train_data))
         batch_indices = np.random.choice(indices, size=batch_size, p=self.probas_by_data, replace=True)
         return self.train_data[batch_indices]
+
+
+# -----------------------------------------------------------------------------
+# Copy problem
+# -----------------------------------------------------------------------------
+
+
+class BinaryCopy(SequenceGenerator):
+    def __init__(self, data_dir=RAW_DIR):
+        super().__init__(data_dir)
+        self.prefix = "binary_copy"
+        self.data_dir = data_dir / self.prefix
+        self.data_dir.mkdir(parents=True, exist_ok=True)
+
+    def generate_fixed_len_data(self, seq_len, nb_data, rng=None):
+        """
+        Generate parity data with fixed sequence length.
+
+        Parameters
+        ----------
+        seq_len : int
+            Length of the sequence.
+        nb_data : int
+            Number of data points to generate.
+            Will be reduced to 2**seq_len if greater.
+        rng : numpy.random.Generator, optional
+            Random number generator. If None, use the default generator.
+            Used if nb_data is too small compared to all the potential sequences.
+
+        Returns
+        -------
+        data: numpy.ndarray
+            Generated data containing sequence of tokens with
+                x: some token,
+                `vocab_size`: end of input.
+        """
+        if rng is None:
+            rng = np.random.default_rng()
+
+        # allocate memory
+        if 2**seq_len < nb_data:
+            nb_data = 2**seq_len
+        length = self.get_len(seq_len)
+        data = np.empty((nb_data, length), dtype=np.int32)
+
+        # input data
+        # ... exhaustive case
+        if 2**seq_len == nb_data:
+            powers_of_two = 2 ** np.arange(seq_len)[::-1]
+            data[:, :seq_len] = (np.arange(nb_data).reshape(-1, 1) & powers_of_two != 0).astype(np.int32)
+        # ... non-exhaustive case
+        else:
+            data[:, :seq_len] = (rng.random((nb_data, seq_len)) > 0.5).astype(np.int32)
+
+        # end of input
+        data[:, seq_len] = 2
+
+        # copying the data
+        data[:, seq_len + 1 :] = data[:, :seq_len]
+        return data
+
+    def get_len(cls, seq_len):
+        """Full sequence length."""
+        return 2 * seq_len + 1
+
+
+class Copy(SequenceGenerator):
+    def __init__(self, vocab_size, data_dir=None):
+        super().__init__(data_dir)
+        self.prefix = "copy_{vocab_size}"
+        self.data_dir = data_dir / self.prefix
+        self.data_dir.mkdir(parents=True, exist_ok=True)
+
+        self.vocab_size = vocab_size
+
+    def generate_fixed_len_data(self, seq_len, nb_data, rng=None):
+        """
+        Generate parity data with fixed sequence length.
+
+        Parameters
+        ----------
+        seq_len : int
+            Length of the sequence.
+        nb_data : int
+            Number of data points to generate.
+            Will be reduced to 2**seq_len if greater.
+        rng : numpy.random.Generator, optional
+            Random number generator. If None, use the default generator.
+            Used if nb_data is too small compared to all the potential sequences.
+
+        Returns
+        -------
+        data: numpy.ndarray
+            Generated data containing sequence of tokens with
+                x: some token,
+                `vocab_size`: end of input.
+        """
+        if rng is None:
+            rng = np.random.default_rng()
+
+        # input
+        length = self.get_len(seq_len)
+        data = np.empty((nb_data, length), dtype=np.int32)
+        data[:, :seq_len] = (rng.random((nb_data, seq_len)) * self.vocab_size).astype(np.int32)
+
+        # end of input
+        data[:, seq_len] = 2
+
+        # copying the data
+        data[:, seq_len + 1 :] = data[:, :seq_len]
+        return data
+
+    def get_len(cls, seq_len):
+        """Full sequence length."""
+        return 2 * seq_len + 1
+
+
+# -----------------------------------------------------------------------------
+# Parity problem
+# -----------------------------------------------------------------------------
+
+
+class Parity(SequenceGenerator):
+    def __init__(self, data_dir=None):
+        super().__init__(data_dir)
+        self.prefix = "parity"
+        self.data_dir = data_dir / self.prefix
+        self.data_dir.mkdir(parents=True, exist_ok=True)
+
+    def generate_fixed_len_data(self, seq_len, nb_data, rng=None):
+        """
+        Generate parity data with fixed sequence length.
+
+        Parameters
+        ----------
+        seq_len : int
+            Length of the sequence.
+        nb_data : int
+            Number of data points to generate.
+            Will be reduced to 2**seq_len if greater.
+        rng : numpy.random.Generator, optional
+            Random number generator. If None, use the default generator.
+            Used if nb_data is too small compared to all the potential sequences.
+
+        Returns
+        -------
+        data: numpy.ndarray
+            Generated data containing sequence of tokens with
+                0: zero bit,
+                1: one bit,
+                2: end of input.
+        """
+        if rng is None:
+            rng = np.random.default_rng()
+
+        # allocate memory
+        if 2**seq_len < nb_data:
+            nb_data = 2**seq_len
+        length = self.get_len(seq_len)
+        data = np.empty((nb_data, length), dtype=np.int32)
+
+        # input data
+        # ... exhaustive case
+        if 2**seq_len == nb_data:
+            powers_of_two = 2 ** np.arange(seq_len)[::-1]
+            data[:, :seq_len] = (np.arange(nb_data).reshape(-1, 1) & powers_of_two != 0).astype(np.int32)
+        # ... non-exhaustive case
+        else:
+            data[:, :seq_len] = (rng.random((nb_data, seq_len)) > 0.5).astype(np.int32)
+
+        # end of input
+        data[:, seq_len] = 2
+
+        # CoT data
+        data[:, seq_len + 1 :] = np.cumsum(data[:, :seq_len], axis=1) % 2
+        return data
+
+    def get_len(cls, seq_len):
+        """Full sequence length."""
+        return 2 * seq_len + 1
