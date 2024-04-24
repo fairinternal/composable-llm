@@ -12,12 +12,13 @@ from cot.config import RAW_DIR
 
 logger = logging.getLogger(__name__)
 
+
 # -----------------------------------------------------------------------------
 # Generic class
 # -----------------------------------------------------------------------------
 
 
-class SequenceGenerator(Dataset):
+class SequenceDataset(Dataset):
     data_dir = RAW_DIR
     prefix = None
 
@@ -207,9 +208,9 @@ class SequenceGenerator(Dataset):
 # -----------------------------------------------------------------------------
 
 
-class BinaryCopy(SequenceGenerator):
+class BinaryCopy(SequenceDataset):
     prefix = "binary_copy"
-    data_dir = SequenceGenerator.data_dir / prefix
+    data_dir = SequenceDataset.data_dir / prefix
 
     def __init__(self):
         super().__init__()
@@ -268,9 +269,9 @@ class BinaryCopy(SequenceGenerator):
         return 2 * seq_len + 1
 
 
-class Copy(SequenceGenerator):
+class Copy(SequenceDataset):
     prefix = "copy"
-    data_dir = SequenceGenerator.data_dir / prefix
+    data_dir = SequenceDataset.data_dir / prefix
     vocab_size = 10
 
     def __init__(self, vocab_size=None):
@@ -329,9 +330,9 @@ class Copy(SequenceGenerator):
 # -----------------------------------------------------------------------------
 
 
-class Parity(SequenceGenerator):
+class Parity(SequenceDataset):
     prefix = "parity"
-    data_dir = SequenceGenerator.data_dir / prefix
+    data_dir = SequenceDataset.data_dir / prefix
 
     def __init__(self):
         super().__init__()
