@@ -15,7 +15,7 @@ License
 -------
 This source code is licensed under the MIT license found in the LICENSE file in the root directory of this source tree.
 
-@ 2023, Vivien Cabannes
+@ 2024, Vivien Cabannes
 """
 
 import math
@@ -25,19 +25,16 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from .utils import (
-    LayerNorm,
-    RMSNorm,
-)
+from .utils import LayerNorm, RMSNorm
 
 # -------------------------------------------------------------------------------
 # Attention Layers
 # -------------------------------------------------------------------------------
 
 
-class Attention(nn.Module):
+class SelfAttention(nn.Module):
     """
-    Attention layer.
+    Self-attention layer.
 
     Parameters
     ----------
@@ -48,29 +45,18 @@ class Attention(nn.Module):
             embedding dimensionality of the input
         n_head: int
             number of attention heads (should divide emb_dim)
-        causal: bool
-            whether to apply a causal mask to attention
         attn_bias: bool
             whether to use bias in attention
         attn_dropout: float
             dropout probability
         attn_downsampling: int
             downsampling factor for key and value matrices
-        sliding_window: int
-            size of the sliding window for attention mask
-        rope: bool
-            whether to use relative positional encoding, in which case the following parameters are required
-            seq_len: int
-                maximum sequence length
-            rope_theta: float
-                angle parameter
         flash: bool
             whether to use flash attention (could mess up half precision computation for mistral)
 
     TODO
     ----
     - Implement caching behavior when processing a sentence token by token at inference time (only feed next token).
-    - Check sliding window implementation.
     """
 
     def __init__(self, attention_type, config):
@@ -79,131 +65,25 @@ class Attention(nn.Module):
         assert config.emb_dim % config.n_head == 0, "embedding dimension must be divisible by number of heads"
 
         self.H = config.n_head
-        self.D = config.attn_downsampling
         E = config.emb_dim
 
         # matrices
         bias = config.attn_bias
-        self.query = nn.Linear(E, E, bias=bias)
-        self.key = nn.Linear(E, E // self.D, bias=bias)
-        self.value = nn.Linear(E, E // self.D, bias=bias)
+        self.qkv_mat = nn.Linear(E, 3 * E, bias=bias)
         self.output = nn.Linear(E, E, bias=bias)
-
-        # attention type: causal, self or cross
-        self.causal = config.causal
-        assert attention_type.lower() in [
-            "self",
-            "cross",
-        ], f"attention type must be either 'self' or 'cross', not {attention_type}"
-        setattr(self, "forward", getattr(self, f"{attention_type.lower()}_attention"))
 
         # flash attention implementation and attention mask
         self.flash = config.flash
-        self.sliding_window = config.sliding_window > 0
-        if self.causal and (not self.flash or self.sliding_window):
+        if not self.flash:
             L = config.seq_len
             mask = torch.ones(L, L)
             mask = torch.tril(mask, diagonal=0)
-            if config.sliding_window:
-                mask = torch.triu(mask, diagonal=-config.sliding_window + 1)
             self.register_buffer("mask", mask.view(1, 1, L, L) == 0)
-        else:
-            # note that one might want to use masking with cross attention
-            self.mask = None
 
         # drop-out regularization
         self.dropout = config.attn_dropout
 
-        # Mistral related specificities
-        # rotational positional encoding
-        self.rope = config.rope
-        if self.rope:
-            self.L = config.seq_len
-            self.theta = config.rope_theta
-            self.register_buffer("rope_angles", self.get_rope_freqs(self.L, E // self.H, self.theta))
-
-    def attention(self, q, k, v):
-        """
-        Attention mechanism.
-
-        Parameters
-        ----------
-        q: torch.Tensor of size (N, L, E)
-            query tensor
-        k: torch.Tensor of size (N, S, E)
-            key tensor
-        H: int
-            number of attention heads
-        rope: bool
-            whether to use rope attention
-        rope_angle: torch.Tensor
-            rope frequencies tensor (in polar form)
-
-        See Also
-        --------
-        `Flash Attention <https://arxiv.org/abs/2205.14135>`_.
-        """
-        N, L, E = q.size()
-        S = k.size(1)
-        H, D, dim = self.H, self.D, E // self.H
-
-        # reformating: (N, L, E)     -> (N, L, H, E / H)     -> (N, H, L, E / H)
-        q = q.view(N, L, H, dim).transpose(1, 2)
-        #              (N, S, E / D) -> (N, S, H / D, E / H) -> (N, H / D, S, E / H)
-        k = k.view(N, S, H // D, dim).transpose(1, 2)
-        v = v.view(N, S, H // D, dim).transpose(1, 2)
-
-        if self.rope:
-            q = self.rope_view(q)
-            k = self.rope_view(k)
-
-        # (N, H / D, S, E / H) -> (N, H, S, E / H)
-        k = torch.repeat_interleave(k, D, dim=1)
-        v = torch.repeat_interleave(v, D, dim=1)
-
-        if not self.flash:
-            # classical implementation
-            # (N, H, L, E / H) @ (N, H, E / H, L) -> (N, H, L, L)
-            attn = q @ k.transpose(-1, -2) / math.sqrt(E // H)
-            if self.causal:
-                attn = attn.masked_fill(self.mask[..., :L, :L], float("-inf"))
-            attn = F.softmax(attn, dim=-1)
-            # (N, H, L, S) @ (N, H, S, E / H) -> (N, H, L, E / H)
-            z = attn @ v
-        else:
-            # Fast implementation based on fused kernel
-            z = F.scaled_dot_product_attention(
-                q, k, v, attn_mask=self.mask, dropout_p=self.dropout if self.training else 0, is_causal=self.causal
-            )
-
-        # reformating: (N, H, L, E / H) -> (N, L, H, E / H) -> (N, L, E)
-        z = z.transpose(1, 2).contiguous().view(N, L, E)
-        return z
-
-    def cross_attention(self, x, y):
-        """
-        Causal attention between an encoding `y` and a decoding `x`
-
-        Parameters
-        ----------
-        x: torch.Tensor (N, L, E)
-            working decoding sequence
-        y: torch.Tensor (N, S, E)
-            fixed encoding sequence
-        """
-        # Query, key, value: (N, L, E) @ (E, dim) -> (N, L, dim)
-        q = self.query(x)
-        k = self.key(y)
-        v = self.value(y)
-
-        # attention layer: (N, L, E)
-        z = self.attention(q, k, v)
-
-        # output layer: (N, L, E) @ (E, E) -> (N, L, E)
-        z = F.dropout(self.output(z), p=self.dropout, training=self.training)
-        return z
-
-    def self_attention(self, x):
+    def forward(self, x):
         """
         Self attention
 
@@ -211,71 +91,41 @@ class Attention(nn.Module):
         ----------
         x: torch.Tensor (N, L, E)
             input sequence
+
+        See Also
+        --------
+        `Flash Attention <https://arxiv.org/abs/2205.14135>`_.
         """
-        return self.cross_attention(x, x)
+        # Query, key, value: (N, L, E) @ (E, 3 * E) -> (N, L, 3 * E) -> (N, L, E) * 3
+        q, k, v = self.qkv_mat(x).chunk(3, dim=-1)
 
-    @staticmethod
-    def get_rope_freqs(seq_len, fan_out, theta):
-        """
-        Returns the frequencies for the positional encoding.
+        # attention layer: (N, L, E)
+        N, L, E = q.size()
+        H, dim = self.H, E // self.H
 
-        Parameters
-        ----------
-        seq_len: int
-            sequence  length of the sequence
-        fan_out: int
-            output dimension for each token in the sequence
-        theta: float
-            rope angle parameter
-        """
-        freqs = 1.0 / (theta ** (torch.arange(0, fan_out - 1, 2) / fan_out))
-        t = torch.arange(seq_len)
-        out = t.unsqueeze(-1) * freqs.unsqueeze(0)
-        out = torch.polar(torch.ones_like(out), out)
-        return out
+        # reformating: (N, L, E) -> (N, L, H, E / H) -> (N, H, L, E / H)
+        q = q.view(N, L, H, dim).transpose(1, 2)
+        k = k.view(N, L, H, dim).transpose(1, 2)
+        v = v.view(N, L, H, dim).transpose(1, 2)
 
-    def rope_view(self, qk):
-        """
-        Recast tensor to complex numbers and apply rotational position filter.
-        """
-        N, H, LS, dim = qk.size()
-        assert LS <= self.rope_angles.size(0), "sequence length is too long for rope attention"
+        if not self.flash:
+            # classical implementation
+            # (N, H, L, E / H) @ (N, H, E / H, L) -> (N, H, L, L)
+            attn = q @ k.transpose(-1, -2) / math.sqrt(E // H)
+            attn = attn.masked_fill(self.mask[..., :L, :L], float("-inf"))
+            attn = F.softmax(attn, dim=-1)
+            # (N, H, L, L) @ (N, H, L, E / H) -> (N, H, L, E / H)
+            z = attn @ v
+        else:
+            # Fast implementation based on fused kernel
+            z = F.scaled_dot_product_attention(q, k, v, dropout_p=self.dropout if self.training else 0, is_causal=True)
 
-        # Handling typing bad behavior (complex.half() -> complex.real().half())
-        if self.rope_angles.dtype in [torch.float16, torch.float32]:
-            self.rope_angles = self.get_rope_freqs(self.L, dim, self.theta).to(device=self.rope_angles.device)
+        # reformating: (N, H, L, E / H) -> (N, L, H, E / H) -> (N, L, E)
+        z = z.transpose(1, 2).contiguous().view(N, L, E)
 
-        # need fixed type for torch.view_as_complex to work properly
-        qk_complex = torch.view_as_complex(qk.float().reshape(N, H, LS, dim // 2, 2))
-        qk_rot = torch.view_as_real(qk_complex * self.rope_angles[:LS]).flatten(-2)
-        qk = qk_rot.type_as(qk)
-        return qk
-
-
-class SelfAttention(Attention):
-    """
-    Self-Attention Layer.
-
-    Notes
-    -----
-    See Attention layer for detailed docstring.
-    """
-
-    def __init__(self, config):
-        Attention.__init__(self, "self", config)
-
-
-class CrossAttention(Attention):
-    """
-    Cross-Attention Layer.
-
-    Notes
-    -----
-    See Attention layer for detailed docstring.
-    """
-
-    def __init__(self, config):
-        Attention.__init__(self, "cross", config)
+        # output layer: (N, L, E) @ (E, E) -> (N, L, E)
+        z = F.dropout(self.output(z), p=self.dropout, training=self.training)
+        return z
 
 
 # --------------------------------------------------------------------------------
@@ -295,7 +145,7 @@ class FeedForward(nn.Module):
         ffn_dim: int
             hidden dimension of the MLP
         activation: str
-            activation function. Options are "relu", "gelu", "swiglu".
+            activation function. Options are "relu", "gelu".
         ffn_bias: bool
             whether to use bias in the MLP
         ffn_dropout: float
@@ -310,22 +160,14 @@ class FeedForward(nn.Module):
 
         # Parsing the activation function
         activation = config.activation.lower()
-        if activation == "swiglu":
-            self.swiglu = True
-            self.swiglu_mat = nn.Linear(config.emb_dim, config.ffn_dim, bias=config.ffn_bias)
-        else:
-            self.swiglu = False
-            self.activation = getattr(F, activation, None)
-            if self.activation is None:
-                raise ValueError(f"Unknown activation function '{config.activation}'")
+        self.activation = getattr(F, activation, None)
+        if self.activation is None:
+            raise ValueError(f"Unknown activation function '{config.activation}'")
 
     def forward(self, x):
-        if self.swiglu:
-            out = self.fc2(F.silu(self.fc1(x)) * self.swiglu_mat(x))
-        else:
-            out = self.fc1(x)
-            out = self.activation(out)
-            out = self.fc2(out)
+        out = self.fc1(x)
+        out = self.activation(out)
+        out = self.fc2(out)
         out = F.dropout(out, p=self.dropout, training=self.training)
         return out
 
@@ -442,7 +284,7 @@ class Embedding(nn.Module):
 # --------------------------------------------------------------------------------
 
 
-class CausalTransformer(nn.Module):
+class Transformer(nn.Module):
     """
     Decoder only transformer.
 
