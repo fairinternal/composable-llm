@@ -4,12 +4,17 @@
 
 Middle term goals:
 - [ ] Write meaningful eval metrics, change the training to only focus on the CoT part
+    - unsure that -1 is a absorbing state
+    - check the final answer
+    - check the validity of chain of thoughts
 - [ ] Write cluster scripts
 - [ ] Make sure that everything run smoothly and fast on the cluster
 - [ ] Change the position embedding implementation, we have different options:
     - try to use relative positional encoding.
     - concatenate token embedding, positional embedding, and previous positional embedding, so that the network can easily learn to attend to the previous token.
 - [ ] Launch first grid experiments
+
+- [ ] For later, only train the network to predict correctly the parity count (either with no slack, or with some slack before).
 
 ## Objective
 
