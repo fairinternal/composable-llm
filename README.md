@@ -16,6 +16,14 @@ Middle term goals:
 
 - [ ] For later, only train the network to predict correctly the parity count (either with no slack, or with some slack before).
 
+Change the special tokens:
+ - 0: BoS
+ - 1: EoI
+ - 2: EoS
+ - 3: 0
+ - 4: 1
+ - ...
+
 ## Objective
 
 Push a learning perspective linked with compositionality.
