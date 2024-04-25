@@ -38,8 +38,6 @@ class SelfAttention(nn.Module):
 
     Parameters
     ----------
-    attention_type: str
-        type of attention, either "self" or "cross"
     config: configuration class with
         emb_dim: int
             embedding dimensionality of the input
@@ -59,7 +57,7 @@ class SelfAttention(nn.Module):
     - Implement caching behavior when processing a sentence token by token at inference time (only feed next token).
     """
 
-    def __init__(self, attention_type, config):
+    def __init__(self, config):
         super().__init__()
 
         assert config.emb_dim % config.n_head == 0, "embedding dimension must be divisible by number of heads"
@@ -358,13 +356,9 @@ class TransformerConfig:
 
     # Attention parameters
     n_head: int = -1
-    causal: bool = True
     attn_bias: bool = False
     attn_dropout: float = None
     attn_downsampling: int = 1
-    rope: bool = False
-    rope_theta: int = 10_000
-    sliding_window: int = 0
 
     # Feed-forward parameters
     activation: float = "gelu"

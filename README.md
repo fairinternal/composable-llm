@@ -4,7 +4,9 @@
 
 Middle term goals:
 - [ ] Write training loop
-    - Change the position embedding implementation: try to use relative positional encoding.
+    - Change the position embedding implementation, we have different options:
+        - try to use relative positional encoding.
+        - concatenate token embedding, positional embedding, and previous positional embedding, so that the network can easily learn to attend to the previous token.
 - [ ] Write cluster scripts
 - [ ] Make sure that everything run smoothly and fast on the cluster
 - [ ] Launch first grid experiments
