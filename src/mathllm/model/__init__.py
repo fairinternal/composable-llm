@@ -1,4 +1,0 @@
-
-from .transformer import (
-    CausalTransformer,
-)

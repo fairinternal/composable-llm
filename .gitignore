@@ -4,3 +4,6 @@ data/processed
 
 *.egg-info
 *__pycache__
+
+src/mathllm/
+tutorial/
