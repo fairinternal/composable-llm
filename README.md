@@ -8,6 +8,7 @@ Middle term engineering goals:
 - [ ] Write cluster scripts
 - [ ] Launch first grid experiments. Make sure that everything run smoothly and fast on the cluster
 - [ ] Implement the problem without CoT (baseline).
+- [ ] Add wandb support to track runs.
 
 NeurIPS research goals:
 - [ ] Write other test to understand how the transformer is solving the different tasks at hand. 

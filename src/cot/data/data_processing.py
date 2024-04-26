@@ -132,7 +132,7 @@ class SequenceDataset(Dataset):
         """
         Load training data as a class attribute.
 
-        Endows `self` with attributes `train_data` and `indices`.
+        Endows `self` with attributes `data` and `indices`.
 
         Parameters
         ----------
@@ -221,8 +221,6 @@ class SequenceDataset(Dataset):
         ----------
         model: torch.nn.Module
             model to be evaluated.
-        dataset: torch.utils.data.Dataset
-            dataset to evaluate the model.
         batch_size: int, optional
             batch size to use when data does not fit in memory.
         special: bool, optional (default is False)
