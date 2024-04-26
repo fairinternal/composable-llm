@@ -4,10 +4,12 @@
 
 Middle term engineering goals:
 - [ ] Write training loop in a script
+    - Do the checkpointing.
 - [ ] Write cluster scripts
 - [ ] Launch first grid experiments. Make sure that everything run smoothly and fast on the cluster
+- [ ] Implement the problem without CoT (baseline).
 
-Middle term research-ish goals:
+NeurIPS research goals:
 - [ ] Write other test to understand how the transformer is solving the different tasks at hand. 
 In particular, since I have derived some potential circuit to solve this problem we could look at those.
 - [ ] Change the position embedding implementation, we have different options:
@@ -21,14 +23,17 @@ Longer term research goals:
 
 ## Objective
 
-Push a learning perspective linked with compositionality.
+Understand efficient machine learning, first by focusing on "linguistic rules" found by LLMs, later by studying how math could be solved with AI.
 
-- Stay grounded by prioritizing experiments first.
-- Stay focus by reasoning with and on LLMs first, notably through math tasks.
 - Ultimatively we would like to shed lights on mechanisms that allow to learn and compose concepts, so to build better reasoning systems.
+- We stay grounded by prioritizing experiments first.
+- We stay focused by reasoning with and on LLMs first, notably through math tasks.
 
-TODO:
+Code organization:
 - we will keep several sub-repo for different projects, with the aim to have some transversal tools for all of them (experimental setup, models, progress measures...)
+
+TODo:
+- we need to write a small notes on what are the linguistic rules that we believe LLMs implement: compositionality, Zeillig Harris, ...
 
 ## Installation
 
