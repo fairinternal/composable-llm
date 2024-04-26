@@ -3,20 +3,17 @@
 ## TODOS
 
 Middle term engineering goals:
-- [ ] Write training loop in a script, add evaluation of the test loss, plus evaluation of other metrics
+- [ ] Write training loop in a script
 - [ ] Write cluster scripts
-- [ ] Make sure that everything run smoothly and fast on the cluster
+- [ ] Launch first grid experiments. Make sure that everything run smoothly and fast on the cluster
 
 Middle term research-ish goals:
-- [ ] Write meaningful eval metrics, change the training to only focus on the CoT part
-    - unsure that -1 is a absorbing state
-    - check the final answer
-    - check the validity of chain of thoughts
-- [ ] Write other test to understand how the transformer is solving the different tasks at hand
+- [ ] Write other test to understand how the transformer is solving the different tasks at hand. 
+In particular, since I have derived some potential circuit to solve this problem we could look at those.
 - [ ] Change the position embedding implementation, we have different options:
     - try to use relative positional encoding.
     - concatenate token embedding, positional embedding, and previous positional embedding, so that the network can easily learn to attend to the previous token.
-- [ ] Launch first grid experiments
+- [ ] Explore length generalization.
 
 Longer term research goals:
 - [ ] Only train the network to predict correctly the parity count (either with no slack, i.e. intermediate tokens, or with some slack before).
