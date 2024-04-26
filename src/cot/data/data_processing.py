@@ -1,5 +1,10 @@
 """
 Generate synthetic data to study LLM behaviors in controlled settings.
+
+The sequences contain the following special tokens:
+    token 0: begining of sentence,
+    token 1: end of input,
+    token 2: end of sentence.
 """
 
 import logging
@@ -208,7 +213,7 @@ class SequenceDataset(Dataset):
     def __getitem__(self, idx):
         return self.data[idx]
 
-    def eval_model(self, model, batch_size=None):
+    def eval_model(self, model, batch_size=None, special=False):
         """
         Eval model on dataset
 
@@ -220,6 +225,8 @@ class SequenceDataset(Dataset):
             dataset to evaluate the model.
         batch_size: int, optional
             batch size to use when data does not fit in memory.
+        special: bool, optional (default is False)
+            whether to compute special token syntaxic error.
 
         Returns
         -------
@@ -227,6 +234,8 @@ class SequenceDataset(Dataset):
             token errors average by lengths.
         seq_err_by_len: torch.Tensor
             sequence errors average by lengths.
+        spe_err: torch.Tensor of size (-1, 3)
+            sequence of special token erros.
         """
 
         if batch_size is None:
@@ -237,6 +246,8 @@ class SequenceDataset(Dataset):
         nb_data = len(self.data)
         err = torch.empty(nb_data, device=device, dtype=float)
         seq_err = torch.empty(nb_data, device=device, dtype=bool)
+        if special:
+            spe_err = torch.zeros(3, device=device, dtype=float)
 
         begin = 0
         for end in range(batch_size, nb_data + batch_size, batch_size):
@@ -253,6 +264,10 @@ class SequenceDataset(Dataset):
             errors = pred != ground_truth
             seq_err[begin:end] = errors.any(dim=1)
             err[begin:end] = errors.float().mean(dim=1)
+            if special:
+                tmp = self.eval_spe_tok_err(pred)
+                spe_err[:] += torch.Tensor(tmp) * (end - begin)
+
             begin = end
 
         ind = self.indices
@@ -268,8 +283,45 @@ class SequenceDataset(Dataset):
         nb_by_len[nb_by_len == 0] = 1
         err_by_len /= nb_by_len
         seq_err_by_len /= nb_by_len
+        if special:
+            spe_err /= end
 
+            return err_by_len, seq_err_by_len, spe_err
         return err_by_len, seq_err_by_len
+
+    @staticmethod
+    def eval_spe_tok_err(pred):
+        """
+        Compute special token syntaxic error.
+
+        Parameters
+        ----------
+        pred: torch.Tensor
+            predictions of CoT with correct prefix.
+
+        Returns
+        -------
+        bos_err: float
+            number of `begin of sentence` syntaxic error.
+        eoi_err: float
+            number of `end of input` syntaxic error.
+        eos_err: float
+            number of `end of sentence` syntaxic error.
+        """
+
+        eos_ind = (pred == 2).int()
+        first_eos = eos_ind.argmax(dim=-1)
+        nb_eos = eos_ind.sum(dim=-1)
+
+        eos_err = (first_eos + nb_eos) != 18
+        bos_err = (pred == 0).int().sum(dim=-1) != 0
+        eoi_err = (pred == 1).int().sum(dim=-1) != 1
+
+        eos_err = eos_err.float().mean()
+        bos_err = bos_err.float().mean()
+        eoi_err = eoi_err.float().mean()
+
+        return bos_err, eoi_err, eos_err
 
 
 # -----------------------------------------------------------------------------
