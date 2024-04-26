@@ -17,16 +17,22 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 dependencies = [
+    # essential
+    "numpy",
+    "torch",
+    # transformer libraries
+    "sentencepiece",
+    "tiktoken",
+    "transformers",
+    # visualization
+    "ipykernel",
+    "ipywidgets",
+    "matplotlib",
+    # formatting
     "black",
     "flake8",
     "flake8-pyproject",
     "isort",
-    "matplotlib",
-    "numpy",
-    "sentencepiece",
-    "tiktoken",
-    "torch",
-    "transformers",
 ]
 
 [project.urls]

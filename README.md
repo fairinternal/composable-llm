@@ -59,7 +59,6 @@ $ pip install -e .
 
 ## Development
 For formatting, I recommand using `black`, `flake8`, and `isort`.
-To configure `flake8` through the `pyproject.toml` file, you can use the `flake8-pyproject` library.
 Consider automatic formatting when saving files (easy to setup in VSCode, ask ChatGPT to get set up if not confortable with VSCode configuration).
 
 ## Organization
