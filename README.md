@@ -3,7 +3,7 @@
 ## TODOS
 
 Middle term engineering goals:
-- [ ] Write training loop in a script, add evaluation of the test loss.
+- [ ] Write training loop in a script, add evaluation of the test loss, plus evaluation of other metrics
 - [ ] Write cluster scripts
 - [ ] Make sure that everything run smoothly and fast on the cluster
 

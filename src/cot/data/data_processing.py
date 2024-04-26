@@ -50,6 +50,8 @@ class SequenceDataset(Dataset):
             Random number generator. If None, use the default generator.
         """
 
+        logger.info(f"Generating data. Saving in {cls.data_dir}")
+
         if rng is None:
             rng = np.random.default_rng()
 
@@ -62,7 +64,7 @@ class SequenceDataset(Dataset):
             nb_train = int(split_proba * len(data))
             np.save(cls.data_dir / f"train_{seq_len}.npy", data[:nb_train])
             np.save(cls.data_dir / f"test_{seq_len}.npy", data[nb_train:])
-            logger.info(f"Sequences of length {seq_len} done. Saved in {cls.data_dir} ({nb_train}/{len(data)} split).")
+            logger.debug(f"Sequences of length {seq_len} done. Saved in {cls.data_dir} ({nb_train}/{len(data)} split).")
 
     def load_data(self, lengths, data_type=None):
         """
@@ -205,6 +207,69 @@ class SequenceDataset(Dataset):
 
     def __getitem__(self, idx):
         return self.data[idx]
+
+    def eval_model(self, model, batch_size=None):
+        """
+        Eval model on dataset
+
+        Parameters
+        ----------
+        model: torch.nn.Module
+            model to be evaluated.
+        dataset: torch.utils.data.Dataset
+            dataset to evaluate the model.
+        batch_size: int, optional
+            batch size to use when data does not fit in memory.
+
+        Returns
+        -------
+        err_by_len: torch.Tensor
+            token errors average by lengths.
+        seq_err_by_len: torch.Tensor
+            sequence errors average by lengths.
+        """
+
+        if batch_size is None:
+            batch_size = len(self.data)
+
+        device = list(model.parameters())[0].device
+
+        nb_data = len(self.data)
+        err = torch.empty(nb_data, device=device, dtype=float)
+        seq_err = torch.empty(nb_data, device=device, dtype=bool)
+
+        begin = 0
+        for end in range(batch_size, nb_data + batch_size, batch_size):
+            data = self.data[begin:end].to(device=device, dtype=torch.long)
+            pred = model(data[:, :-1]).argmax(dim=-1)
+            ground_truth = data[:, 1:]
+
+            ind = ground_truth == 1
+            cot_mask = ind.cumsum(axis=1)
+            cot_mask[ind] = 0
+            cot_mask = cot_mask.to(dtype=bool)
+            pred[~cot_mask] = ground_truth[~cot_mask]
+
+            errors = pred != ground_truth
+            seq_err[begin:end] = errors.any(dim=1)
+            err[begin:end] = errors.float().mean(dim=1)
+            begin = end
+
+        ind = self.indices
+        err_by_len = err.cumsum(dim=0)[ind - 1]
+        err_by_len[ind == 0] = 0
+        err_by_len = err_by_len.diff()
+
+        seq_err_by_len = seq_err.cumsum(dim=0)[ind - 1]
+        seq_err_by_len[ind == 0] = 0
+        seq_err_by_len = seq_err_by_len.diff().float()
+
+        nb_by_len = ind.diff()
+        nb_by_len[nb_by_len == 0] = 1
+        err_by_len /= nb_by_len
+        seq_err_by_len /= nb_by_len
+
+        return err_by_len, seq_err_by_len
 
 
 # -----------------------------------------------------------------------------
