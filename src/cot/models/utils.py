@@ -44,7 +44,9 @@ if torch.__version__ < "2.1":
         def forward(self, x):
             out = F.layer_norm(x, normalized_shape=self.weight.shape, weight=self.weight, bias=self.bias, eps=1e-5)
             # numerically stable version if self.eps is too small compared to float precision
-            # out = F.layer_norm(x.float(), normalized_shape=self.weight.shape, weight=self.weight, bias=self.bias, eps=1e-5).type_as(x)
+            # out = F.layer_norm(
+            #     x.float(), normalized_shape=self.weight.shape, weight=self.weight, bias=self.bias, eps=1e-5
+            # ).type_as(x)
             return out
 
 else:
