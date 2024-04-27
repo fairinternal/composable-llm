@@ -5,6 +5,13 @@ The sequences contain the following special tokens:
     token 0: begining of sentence,
     token 1: end of input,
     token 2: end of sentence.
+
+License
+-------
+This source code is licensed under the MIT license found in the LICENSE file
+in the root directory of this source tree.
+
+@ 2024,
 """
 
 import logging
