@@ -3,20 +3,19 @@
 ## TODOS
 
 Middle term engineering goals:
-- [ ] Write training loop in a script
-    - Use Fire instead of argparse.
-- [ ] Write cluster scripts
+- [ ] Implement position encodings.
+- [ ] Write Slurm launcher.
 - [ ] Launch first grid experiments. Make sure that everything run smoothly and fast on the cluster
 - [ ] Implement the problem without CoT (baseline).
 - [ ] Add wandb support to track runs.
 
 NeurIPS research goals:
-- [ ] Write other test to understand how the transformer is solving the different tasks at hand. 
-In particular, since I have derived some potential circuit to solve this problem we could look at those.
-- [ ] Change the position embedding implementation, we have different options:
+- [ ] Solve length generalization. Change the position embedding implementation, we have different options:
     - try to use relative positional encoding.
     - concatenate token embedding, positional embedding, and previous positional embedding, so that the network can easily learn to attend to the previous token.
-- [ ] Explore length generalization.
+- [ ] Write test to understand how the transformer is solving the different tasks at hand. 
+In particular, since I have derived some potential circuit to solve this problem we could look at those.
+- [ ] Do ablation studies.
 
 Longer term research goals:
 - [ ] Only train the network to predict correctly the parity count (either with no slack, i.e. intermediate tokens, or with some slack before).
