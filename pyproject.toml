@@ -20,14 +20,20 @@ dependencies = [
     # essential
     "numpy",
     "torch",
+
+    # argument parsing
+    "fire",
+
     # transformer libraries
     "sentencepiece",
     "tiktoken",
     "transformers",
+
     # visualization
     "ipykernel",
     "ipywidgets",
     "matplotlib",
+
     # formatting
     "black",
     "flake8",

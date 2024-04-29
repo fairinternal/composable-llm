@@ -4,8 +4,6 @@
 
 Middle term engineering goals:
 - [ ] Write training loop in a script
-    - Test for bug in the training script.
-        - Change the eval checkpointing. Rethinking it to make it consistent with multiple runs with different eval frequency (save an eval_timestep variable).
     - Use Fire instead of argparse.
 - [ ] Write cluster scripts
 - [ ] Launch first grid experiments. Make sure that everything run smoothly and fast on the cluster
