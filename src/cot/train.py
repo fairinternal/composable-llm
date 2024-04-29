@@ -119,7 +119,7 @@ if load_checkpoint:
     epoch = checkpoint["epoch"]
     model.load_state_dict(checkpoint["model_state_dict"])
     optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
-    # losses[:epoch] = checkpoint["losses"]
+    losses[:epoch] = checkpoint["losses"][:epoch]
 else:
     epoch = 0
 
@@ -130,12 +130,33 @@ else:
 
 
 eval_freq = 10
-nb_eval = nb_epochs // eval_freq + 1
 
-acc_by_len = np.empty((nb_eval, len(lengths)))
-test_acc_by_len = np.empty((nb_eval, len(lengths)))
-spe_acc = np.empty((nb_eval, 3))
-test_spe_acc = np.empty((nb_eval, 3))
+if load_checkpoint:
+    nb_eval = (nb_epochs - epoch) // eval_freq + 1
+    eval = checkpoint["evals"].argmax() + 1
+
+    acc_by_len = np.empty((nb_eval + eval, len(lengths)))
+    test_acc_by_len = np.empty((nb_eval + eval, len(lengths)))
+    spe_acc = np.empty((nb_eval + eval, 3))
+    test_spe_acc = np.empty((nb_eval + eval, 3))
+    evals = np.full(nb_eval + eval, -1, dtype=int)
+
+    acc_by_len[:eval] = checkpoint["acc_by_len"][:eval]
+    test_acc_by_len[:eval] = checkpoint["test_acc_by_len"][:eval]
+    spe_acc[:eval] = checkpoint["spe_acc"][:eval]
+    test_spe_acc[:eval] = checkpoint["test_spe_acc"][:eval]
+    evals[:eval] = checkpoint["evals"][:eval]
+
+    epoch = checkpoint["epoch"]
+else:
+    nb_eval = nb_epochs // eval_freq + 1
+    eval = 0
+
+    acc_by_len = np.empty((nb_eval, len(lengths)))
+    test_acc_by_len = np.empty((nb_eval, len(lengths)))
+    spe_acc = np.empty((nb_eval, 3))
+    test_spe_acc = np.empty((nb_eval, 3))
+    evals = np.full(nb_eval, -1, dtype=int)
 
 
 # -----------------------------------------------------------------------------
@@ -161,6 +182,8 @@ while True:
         test_acc_by_len[s] = 1 - test_seq_err.numpy()
         spe_acc[s] = 1 - spe_err
         test_spe_acc[s] = 1 - test_spe_err
+        evals[s] = epoch
+        eval += 1
 
     if epoch >= nb_epochs:
         break
@@ -216,6 +239,7 @@ while True:
                 "test_acc_by_len": test_acc_by_len,
                 "spe_acc": spe_acc,
                 "test_spe_acc": test_spe_acc,
+                "evals": evals,
             },
             path,
         )
