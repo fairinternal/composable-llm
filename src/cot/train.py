@@ -11,6 +11,7 @@ in the root directory of this source tree.
 
 import argparse
 import logging
+import sys
 
 import numpy as np
 import torch
@@ -101,7 +102,7 @@ config = TransformerConfig(
     n_layer=2,
 )
 
-nb_epochs = 60
+nb_epochs = 1000
 losses = np.empty(nb_epochs)
 
 checkpoint_freq = 30
@@ -126,6 +127,10 @@ if load_checkpoint:
     checkpoint = torch.load(path)
 
     epoch = checkpoint["epoch"]
+
+    if epoch > nb_epochs:
+        logger.error(f"Model has been trained for {epoch} epochs, which is higher than {nb_epochs}")
+        sys.exit()
     model.load_state_dict(checkpoint["model_state_dict"])
     optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
     losses[:epoch] = checkpoint["losses"][:epoch]
@@ -225,15 +230,13 @@ while True:
 
         with torch.no_grad():
             running_loss += loss.item()
-    if epoch == 1:
-        print(inputs)
 
     losses[epoch - 1] = loss
 
     logger.info(f"Epoch {epoch:5d}, Loss: {running_loss:.4f}")
 
     # checkpointing
-    if not epoch % checkpoint_freq or epoch == nb_epochs + 1:
+    if not epoch % checkpoint_freq or epoch == nb_epochs:
         if overwrite_checkpoint:
             path = check_dir / "model.pth"
         else:
