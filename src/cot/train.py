@@ -37,11 +37,22 @@ parser.add_argument(
 )
 args = parser.parse_args()
 
+# -----------------------------------------------------------------------------
+# Reproducibility and Device
+# -----------------------------------------------------------------------------
+
+rng = np.random.default_rng(0)
+
+torch.manual_seed(0)
+if torch.cuda.is_available():
+    device = torch.device("cuda")
+    torch.cuda.manual_seed_all(0)
+else:
+    device = torch.device("cpu")
 
 # -----------------------------------------------------------------------------
 # Data
 # -----------------------------------------------------------------------------
-
 
 match args.problem:
     case "binary-copy":
@@ -51,7 +62,6 @@ match args.problem:
 
 
 # Argument that should be handled by argparse
-rng = np.random.default_rng()
 nb_len = 8
 lengths = list(np.arange(nb_len) + 1)
 
@@ -91,14 +101,14 @@ config = TransformerConfig(
     n_layer=2,
 )
 
-nb_epochs = 300
+nb_epochs = 60
 losses = np.empty(nb_epochs)
 
 checkpoint_freq = 30
 overwrite_checkpoint = True
 check_dir = CHECKPOINT_DIR / Problem.prefix
 check_dir.mkdir(parents=True, exist_ok=True)
-load_checkpoint = True
+load_checkpoint = False
 
 model = Transformer(config)
 logger.info(f"Model: {model}.")
@@ -106,10 +116,9 @@ logger.info(f"Model: {model}.")
 optimizer = optim.Adam(model.parameters(), lr=1e-3)
 scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=100, gamma=0.5)
 
-torch.manual_seed(0)
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 logger.info(f"Device used: {device}.")
 model.to(device)
+probas_by_len = torch.from_numpy(probas_by_len).to(device=device)
 
 if load_checkpoint:
     path = check_dir / "model.pth"
@@ -178,10 +187,10 @@ while True:
 
         logger.info(f"Epoch {epoch:5d}, Accuracy: {accuracy:.4f}, {test_accuracy:.4f}")
         s = epoch // eval_freq
-        acc_by_len[s] = 1 - seq_err.numpy()
-        test_acc_by_len[s] = 1 - test_seq_err.numpy()
-        spe_acc[s] = 1 - spe_err
-        test_spe_acc[s] = 1 - test_spe_err
+        acc_by_len[s] = 1 - seq_err.cpu()
+        test_acc_by_len[s] = 1 - test_seq_err.cpu()
+        spe_acc[s] = 1 - spe_err.cpu()
+        test_spe_acc[s] = 1 - test_spe_err.cpu()
         evals[s] = epoch
         eval += 1
 
@@ -216,6 +225,8 @@ while True:
 
         with torch.no_grad():
             running_loss += loss.item()
+    if epoch == 1:
+        print(inputs)
 
     losses[epoch - 1] = loss
 

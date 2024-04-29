@@ -271,11 +271,11 @@ class SequenceDataset(Dataset):
             err[begin:end] = errors.float().mean(dim=1)
             if special:
                 tmp = self.eval_spe_tok_err(pred)
-                spe_err[:] += torch.Tensor(tmp) * (end - begin)
+                spe_err[:] += torch.stack(tmp) * (end - begin)
 
             begin = end
 
-        ind = self.indices
+        ind = self.indices.to(device)
         err_by_len = err.cumsum(dim=0)[ind - 1]
         err_by_len[ind == 0] = 0
         err_by_len = err_by_len.diff()
