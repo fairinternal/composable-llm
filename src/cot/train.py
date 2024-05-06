@@ -46,6 +46,11 @@ else:
 
 def main(
     problem="binary-copy",
+    nb_len=8,
+    split_probas=0.5,
+    max_nb_data_per_len=10_000,
+    zipf_offset=0,
+    zipf_coef=0,
     emb_dim=128,
     emb_dropout=0.1,
     n_head=2,
@@ -64,6 +69,16 @@ def main(
     ---------
     problem: str
         Problem to be solved. Currently supported are "binary-copy" and "parity".
+    nb_len: int
+        Maximum number of lenghts for sequences.
+    split_probas: float or list of float
+        Percentage of train/test split, eventually specified by length.
+    max_nb_data_per_len: int
+        Maximum number of data to generate for a given length.
+    zipf_offset: float
+        Index offset to the Zipf law generating sentence lengths.
+    zipf_coef: float
+        Decaying coefficient to the Zipf law generating sentence lengths.
     emb_dim: int
         Embedding dimension size.
     emb_dropout: float
@@ -99,14 +114,16 @@ def main(
             raise ValueError(f"Problem {problem} not recognized.")
 
     # hyperparameters
-    nb_len = 8
     lengths = list(np.arange(nb_len) + 1)
 
-    split_probas_by_len = 0.75 * np.ones(len(lengths))
-    probas_by_len = np.ones(len(lengths), dtype=float)
-    probas_by_len /= probas_by_len.sum()
+    if isinstance(split_probas, float):
+        split_probas_by_len = split_probas * np.ones(len(lengths))
+    else:
+        split_probas_by_len = np.array(split_probas)
+        assert len(split_probas_by_len) == nb_len, "`split_probas` should be of size `nb_len`"
 
-    max_nb_data_per_len = 10_000
+    probas_by_len = (np.arange(len(lengths), dtype=float) + zipf_offset) ** (-zipf_coef)
+    probas_by_len /= probas_by_len.sum()
 
     # main objects
     if Problem.prefix == "copy":
