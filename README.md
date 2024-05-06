@@ -3,9 +3,10 @@
 ## TODOS
 
 Middle term engineering goals:
-- [ ] Implement position encodings.
+- [ ] Implement position encodings and test length generalization.
 - [ ] Write Slurm launcher.
 - [ ] Launch first grid experiments. Make sure that everything run smoothly and fast on the cluster
+- [ ] Once we have solved small length generalization, inspect the transformer to find circuits.
 - [ ] Implement the problem without CoT (baseline).
 - [ ] Add wandb support to track runs.
 
