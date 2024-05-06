@@ -2,13 +2,15 @@
 
 ## TODOS
 
-Middle term engineering goals:
-- [ ] Implement position encodings and test length generalization.
-- [ ] Write Slurm launcher.
-- [ ] Launch first grid experiments. Make sure that everything run smoothly and fast on the cluster
-- [ ] Once we have solved small length generalization, inspect the transformer to find circuits.
-- [ ] Implement the problem without CoT (baseline).
-- [ ] Add wandb support to track runs.
+## TODOS
+
+Clear TODO:
+- [ ] Clear setup to run grid on cluster
+    - involving slurm
+    - involving wandb (create a shared team, add wandb login, add consistent format so that we do not overwrite on wandb).
+- [ ] Clear setting to show the attention maps
+    - I will push my change to a new branch
+- [ ] Make sure that we train well for different lengths, with 2 layers and 1 head per layer.
 
 NeurIPS research goals:
 - [ ] Solve length generalization. Change the position embedding implementation, we have different options:
