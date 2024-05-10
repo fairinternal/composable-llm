@@ -106,7 +106,7 @@ class SelfAttention(nn.Module):
         k = k.view(N, L, H, dim).transpose(1, 2)
         v = v.view(N, L, H, dim).transpose(1, 2)
 
-        if not self.flash:
+        if not self.flash or verbose:
             # classical implementation
             # (N, H, L, E / H) @ (N, H, E / H, L) -> (N, H, L, L)
             attn = q @ k.transpose(-1, -2) / math.sqrt(E // H)
@@ -124,7 +124,7 @@ class SelfAttention(nn.Module):
         # output layer: (N, L, E) @ (E, E) -> (N, L, E)
         z = F.dropout(self.output(z), p=self.dropout, training=self.training)
         if verbose:
-            z = (z, attn)
+            return z, attn
         return z
 
 
@@ -234,7 +234,7 @@ class TransformerBlock(nn.Module):
             out = x + z
             out = out + self.norm_2(self.ffn(out))
         if verbose:
-            out = (out, att)
+            return out, att
         return out
 
 
@@ -355,7 +355,7 @@ class Transformer(nn.Module):
         out = self.output(out)
         if verbose:
             attentions = torch.stack(attentions)
-            out = (out, attentions)
+            return out, attentions
         return out
 
 
