@@ -10,8 +10,8 @@ in the root directory of this source tree.
 """
 
 import logging
-import sys
 import signal
+import sys
 
 import fire
 import numpy as np
@@ -38,9 +38,9 @@ logging.basicConfig(
 
 rng = np.random.default_rng(0)
 
-torch.manual_seed(0)
+torch.manual_seed(100)
 if torch.cuda.is_available():
-    device = torch.device("cuda")
+    device = torch.device("cuda:0")
     torch.cuda.manual_seed_all(0)
 else:
     device = torch.device("cpu")
@@ -50,7 +50,7 @@ def main(
     problem="binary-copy",
     nb_len=8,
     split_probas=0.5,
-    max_nb_data_per_len=10_000,
+    max_nb_data_per_len=100_000,
     zipf_offset=0,
     zipf_coef=0,
     emb_dim=128,

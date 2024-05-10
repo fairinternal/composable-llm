@@ -72,11 +72,12 @@ class SelfAttention(nn.Module):
 
         # flash attention implementation and attention mask
         self.flash = config.flash
-        if not self.flash:
-            L = config.seq_len
-            mask = torch.ones(L, L)
-            mask = torch.tril(mask, diagonal=0)
-            self.register_buffer("mask", mask.view(1, 1, L, L) == 0)
+
+        # needed to checked attention matrices
+        L = config.seq_len
+        mask = torch.ones(L, L)
+        mask = torch.tril(mask, diagonal=0)
+        self.register_buffer("mask", mask.view(1, 1, L, L) == 0)
 
         # drop-out regularization
         self.dropout = config.attn_dropout

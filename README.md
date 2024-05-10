@@ -2,14 +2,11 @@
 
 ## TODOS
 
-## TODOS
-
 Clear TODO:
 - [ ] Clear setup to run grid on cluster
     - involving slurm
     - involving wandb (create a shared team, add wandb login, add consistent format so that we do not overwrite on wandb).
 - [ ] Clear setting to show the attention maps
-    - I will push my change to a new branch
 - [ ] Make sure that we train well for different lengths, with 2 layers and 1 head per layer.
 
 NeurIPS research goals:
