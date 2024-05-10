@@ -11,6 +11,7 @@ in the root directory of this source tree.
 
 import logging
 import sys
+import signal
 
 import fire
 import numpy as np
@@ -22,6 +23,7 @@ from torch.utils.data import DataLoader
 from cot.config import CHECKPOINT_DIR
 from cot.data import BinaryCopy, Parity
 from cot.models import Transformer, TransformerConfig
+from cot.utils import handle_sig, handle_term
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(
@@ -305,4 +307,7 @@ def main(
 
 
 if __name__ == "__main__":
+    signal.signal(signal.SIGUSR1, handle_sig)
+    signal.signal(signal.SIGTERM, handle_term)
+
     fire.Fire(main)
