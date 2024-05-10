@@ -81,7 +81,7 @@ class SelfAttention(nn.Module):
         # drop-out regularization
         self.dropout = config.attn_dropout
 
-    def forward(self, x):
+    def forward(self, x, verbose=False):
         """
         Self attention
 
@@ -123,6 +123,8 @@ class SelfAttention(nn.Module):
 
         # output layer: (N, L, E) @ (E, E) -> (N, L, E)
         z = F.dropout(self.output(z), p=self.dropout, training=self.training)
+        if verbose:
+            z = (z, attn)
         return z
 
 
@@ -216,13 +218,23 @@ class TransformerBlock(nn.Module):
         self.ffn = FeedForward(config)
         self.pre_norm = config.pre_norm
 
-    def forward(self, x):
+    def forward(self, x, verbose=False):
         if self.pre_norm:
-            out = x + self.attn(self.norm_1(x))
+            x = self.norm_1(x)
+            z = self.attn(x, verbose=verbose)
+            if verbose:
+                z, att = z
+            out = x + z
             out = out + self.ffn(self.norm_2(out))
         else:
-            out = x + self.norm_1(self.attn(x))
+            z = self.attn(x, verbose=verbose)
+            if verbose:
+                z, att = z
+            z = self.norm_1(z)
+            out = x + z
             out = out + self.norm_2(self.ffn(out))
+        if verbose:
+            out = (out, att)
         return out
 
 
@@ -330,13 +342,20 @@ class Transformer(nn.Module):
 
         self.dropout = config.output_dropout
 
-    def forward(self, x):
+    def forward(self, x, verbose=False):
         out = self.embeddings(x)
+        attentions = []
         for block in self.blocks:
-            out = block(out)
+            out = block(out, verbose=verbose)
+            if verbose:
+                out, att = out
+                attentions.append(att)
         out = self.output_norm(out)
         out = F.dropout(out, p=self.dropout, training=self.training)
         out = self.output(out)
+        if verbose:
+            attentions = torch.stack(attentions)
+            out = (out, attentions)
         return out
 
 
