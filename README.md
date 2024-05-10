@@ -3,22 +3,20 @@
 ## TODOS
 
 Clear TODO:
-- [ ] Clear setup to run grid on cluster
-    - involving slurm
-    - involving wandb (create a shared team, add wandb login, add consistent format so that we do not overwrite on wandb).
-- [ ] Clear setting to show the attention maps
-- [ ] Make sure that we train well for different lengths, with 2 layers and 1 head per layer.
+- [ ] Find data with clean the attention maps, or change the training to make it cleaner.
+    - implement automatic metric to find those clean maps (option: do it for all the matrix we predicted).
+    - maybe run stuffs on the cluster.
+- [ ] Look at skill transfert between binary problem and copying problem / look a bit into curriculum...
+- [ ] Look at how the substraction of position embeddings is performed by the first MLP.
+- [ ] Look at how the state updates is performed by the second MLP when we solve for the parity problem.
+- [ ] Look at how the work get shared across heads when we have too much capacity.
+- [ ] Implement a baseline without CoT
 
-NeurIPS research goals:
-- [ ] Solve length generalization. Change the position embedding implementation, we have different options:
-    - try to use relative positional encoding.
-    - concatenate token embedding, positional embedding, and previous positional embedding, so that the network can easily learn to attend to the previous token.
-- [ ] Write test to understand how the transformer is solving the different tasks at hand. 
-In particular, since I have derived some potential circuit to solve this problem we could look at those.
-- [ ] Do ablation studies.
+- Nice things to have
+    - slurm launcher (with and without signal handling / resubmitting).
+    - wandb logging and good referential for experiments.
 
 Longer term research goals:
-- [ ] Only train the network to predict correctly the parity count (either with no slack, i.e. intermediate tokens, or with some slack before).
 - [ ] Have a special first token that indicates the problem that has generated the sentence. Check how the transformer reuses circuits for one tasks to the others (it will learn useful generic skills such as copying previous tokens, but will also need to go through specific circuits).
 
 ## Objective
