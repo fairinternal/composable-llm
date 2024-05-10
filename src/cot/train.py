@@ -61,6 +61,7 @@ def main(
     overwrite_checkpoint=True,
     load_checkpoint=False,
     eval_freq=10,
+    flash=None,
 ):
     """
     Training a Transformer model on a specified problem.
@@ -99,6 +100,8 @@ def main(
         Whether to load a previous checkpoint for continuing training.
     eval_freq: int
         Evaluation frequency.
+    flash: bool
+        Use flash attention or not.
     """
 
     # -----------------------------------------------------------------------------
@@ -152,6 +155,7 @@ def main(
         emb_dropout=emb_dropout,
         n_head=n_head,
         n_layer=n_layer,
+        flash=flash,
     )
 
     losses = np.empty(nb_epochs)
