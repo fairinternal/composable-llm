@@ -57,3 +57,14 @@ def attention_metrics(sequence, attentions):
         attn_peaky[i, 2] = attn1.mean()
         attn_peaky[i, 3] = (attn1 > 0.5).to(dtype=float).mean()
     return attn_inv, attn_peaky
+
+
+class SimpleEval:
+
+    def __init__(self, lengths):
+        self.eval_dim = 2 * len(lengths) + 6
+
+    def __call__(self, model, trainset, testset):
+        _, seq_err, spe_err = trainset.eval_model(model, special=True)
+        _, test_seq_err, test_spe_err = testset.eval_model(model, special=True)
+        return torch.concat((1 - seq_err.cpu(), 1 - test_seq_err.cpu(), 1 - spe_err.cpu(), 1 - test_spe_err.cpu()))
