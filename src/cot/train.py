@@ -145,7 +145,11 @@ def main(
     testset = Problem()
     testset.set_as_testset(lengths)
 
-    loader = DataLoader(trainset, batch_size=len(trainset), sampler=trainset.sampler)
+    if batch_size is None:
+        batch_size = len(trainset)
+        logger.info("No batch size specified. Using gradient descent (full batch).")
+
+    loader = DataLoader(trainset, batch_size=batch_size, sampler=trainset.sampler)
     logger.info(f"Number of training data: {len(trainset)}.")
 
     # --------------------------------------------------------------------------
