@@ -22,6 +22,8 @@ from torch.utils.data import DataLoader
 
 from cot.config import CHECKPOINT_DIR
 from cot.data import BinaryCopy, Parity
+from cot.evals import EvaluationIO
+from cot.evals.cot import SimpleEval
 from cot.models import Transformer, TransformerConfig
 from cot.utils import handle_sig, handle_term
 
@@ -61,7 +63,6 @@ def main(
     overwrite_checkpoint=True,
     load_checkpoint=False,
     eval_freq=10,
-    verbose=False,
 ):
     """
     Training a Transformer model on a specified problem.
@@ -98,8 +99,6 @@ def main(
         Whether to load a previous checkpoint for continuing training.
     eval_freq: int
         Evaluation frequency.
-    verbose: bool
-        Wether to log attention maps eval metrics.
     """
 
     # -----------------------------------------------------------------------------
@@ -130,7 +129,7 @@ def main(
     # non-uniform sampler
     probas_by_len = (np.arange(len(lengths), dtype=float) + zipf_offset) ** (-zipf_coef)
     probas_by_len /= probas_by_len.sum()
-    sampler = trainset.get_sampler_by_lens(probas_by_len)
+    sampler = trainset.get_sampler_by_len(probas_by_len)
 
     loader = DataLoader(trainset, batch_size=batch_size, sampler=sampler)
     logger.info(f"Number of training data: {len(trainset)}.")
@@ -183,32 +182,17 @@ def main(
     # Evaluation Placeholders
     # --------------------------------------------------------------------------
 
+    evaluator = SimpleEval(lengths)
+    eval_dim = evaluator.eval_dim
+
     if load_checkpoint:
-        nb_eval = (nb_epochs - epoch) // eval_freq + 1
-        eval = checkpoint["evals"].argmax() + 1
-
-        acc_by_len = np.empty((nb_eval + eval, len(lengths)))
-        test_acc_by_len = np.empty((nb_eval + eval, len(lengths)))
-        spe_acc = np.empty((nb_eval + eval, 3))
-        test_spe_acc = np.empty((nb_eval + eval, 3))
-        evals = np.full(nb_eval + eval, -1, dtype=int)
-
-        acc_by_len[:eval] = checkpoint["acc_by_len"][:eval]
-        test_acc_by_len[:eval] = checkpoint["test_acc_by_len"][:eval]
-        spe_acc[:eval] = checkpoint["spe_acc"][:eval]
-        test_spe_acc[:eval] = checkpoint["test_spe_acc"][:eval]
-        evals[:eval] = checkpoint["evals"][:eval]
-
-        epoch = checkpoint["epoch"]
+        nb_evals = (nb_epochs - epoch) // eval_freq + 1
+        report_eval = EvaluationIO(
+            nb_evals, eval_dim, past_evals=checkpoint["evals"], past_timestamps=checkpoint["timestamps"]
+        )
     else:
-        nb_eval = nb_epochs // eval_freq + 1
-        eval = 0
-
-        acc_by_len = np.empty((nb_eval, len(lengths)))
-        test_acc_by_len = np.empty((nb_eval, len(lengths)))
-        spe_acc = np.empty((nb_eval, 3))
-        test_spe_acc = np.empty((nb_eval, 3))
-        evals = np.full(nb_eval, -1, dtype=int)
+        nb_evals = nb_epochs // eval_freq + 1
+        report_eval = EvaluationIO(nb_evals, eval_dim)
 
     # --------------------------------------------------------------------------
     # Training loop
@@ -221,19 +205,12 @@ def main(
         if not epoch % eval_freq:
             with torch.no_grad():
                 model.eval()
-                _, seq_err, spe_err = trainset.eval_model(model, special=True)
-                _, test_seq_err, test_spe_err = testset.eval_model(model, special=True)
-                accuracy = 1 - (seq_err * probas_by_len).sum().item()
-                test_accuracy = 1 - (test_seq_err * probas_by_len).sum().item()
+                evals = evaluator(model, trainset, testset)
+                report_eval(epoch, evals)
+                accuracy = (evals[0] * probas_by_len).sum().item()
+                test_accuracy = (evals[1] * probas_by_len).sum().item()
 
             logger.info(f"Epoch {epoch:5d}, Accuracy: {accuracy:.4f}, {test_accuracy:.4f}")
-            s = epoch // eval_freq
-            acc_by_len[s] = 1 - seq_err.cpu()
-            test_acc_by_len[s] = 1 - test_seq_err.cpu()
-            spe_acc[s] = 1 - spe_err.cpu()
-            test_spe_acc[s] = 1 - test_spe_err.cpu()
-            evals[s] = epoch
-            eval += 1
 
         if epoch >= nb_epochs:
             break
@@ -283,11 +260,8 @@ def main(
                     "model_state_dict": model.state_dict(),
                     "optimizer_state_dict": optimizer.state_dict(),
                     "losses": losses,
-                    "acc_by_len": acc_by_len,
-                    "test_acc_by_len": test_acc_by_len,
-                    "spe_acc": spe_acc,
-                    "test_spe_acc": test_spe_acc,
-                    "evals": evals,
+                    "evals": report_eval.evals,
+                    "timestamps": report_eval.timestamps,
                 },
                 path,
             )
