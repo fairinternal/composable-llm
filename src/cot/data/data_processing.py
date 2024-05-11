@@ -81,7 +81,6 @@ class SequenceDataset(Dataset):
         for seq_len, split_proba in enumerate(split_probas_by_len):
             seq_len += 1
             data = cls.generate_fixed_len_data(seq_len=seq_len, nb_data=max_data_per_len, rng=rng)
-            np.save(cls.data_dir / f"data_{seq_len}.npy", data)
             rng.shuffle(data)
             nb_train = int(split_proba * len(data))
             np.save(cls.data_dir / f"train_{seq_len}.npy", data[:nb_train])
@@ -97,7 +96,7 @@ class SequenceDataset(Dataset):
         lengths : list of int
             List of sequence lengths.
         data_type : str, optional
-            Type of data to load. Whether 'train', 'test' or 'all'.
+            Type of data to load. Whether 'train' or 'test'.
 
         Returns
         -------
@@ -115,17 +114,13 @@ class SequenceDataset(Dataset):
         Should be called after `generate_datafiles`.
         """
         assert isinstance(lengths, list), "`lenghts` must be an a list of int."
-        assert data_type in ["train", "test", "all"], "`data_type` must be 'train', 'test' or 'all'."
-
-        prefix = data_type
-        if data_type == "all":
-            prefix = "data"
+        assert data_type in ["train", "test"], "`data_type` must be 'train' or 'test'."
 
         # memory preallocation
         # ... compute the data size by lenghts
         nb_data_by_lens = np.empty(len(lengths))
         for i, seq_len in enumerate(lengths):
-            filename = self.data_dir / f"{prefix}_{seq_len}.npy"
+            filename = self.data_dir / f"{data_type}_{seq_len}.npy"
             with open(filename, "rb") as f:
                 version = np.lib.format.read_magic(f)
                 header = np.lib.format._read_array_header(f, version)
@@ -140,7 +135,7 @@ class SequenceDataset(Dataset):
         # load the data in the allocated memory
         for i, seq_len in enumerate(lengths):
             data[indices[i] : indices[i + 1], 1 : self.get_len(seq_len) + 1] = np.load(
-                self.data_dir / f"{prefix}_{seq_len}.npy"
+                self.data_dir / f"{data_type}_{seq_len}.npy"
             )
 
         return data, indices
@@ -156,7 +151,7 @@ class SequenceDataset(Dataset):
         lengths : list of int
             List of sequence lengths.
         data_type : str
-            Type of data to load. Whether 'train', 'test' or 'all'.
+            Type of data to load. Whether 'train' or 'test'.
 
         Notes
         -----
@@ -166,7 +161,7 @@ class SequenceDataset(Dataset):
         self.data = torch.from_numpy(train_data)
         self.indices = torch.from_numpy(indices)
 
-    def get_sampler_by_lens(self, probas_by_len):
+    def get_sampler_by_len(self, probas_by_len):
         """
         Set the probability of each data point.
 
