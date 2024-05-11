@@ -55,15 +55,16 @@ def main(
     zipf_coef=0,
     emb_dim=128,
     emb_dropout=0.1,
-    n_head=2,
+    n_head=1,
     n_layer=2,
     nb_epochs=1000,
+    batch_size=None,
     learning_rate=1e-3,
     checkpoint_freq=100,
     overwrite_checkpoint=True,
     load_checkpoint=False,
     eval_freq=10,
-    flash=None,
+    verbose=False,
 ):
     """
     Training a Transformer model on a specified problem.
@@ -92,6 +93,8 @@ def main(
         Number of layers.
     nb_epochs: int
         Total number of training epochs.
+    batch_size: int
+        Batch size. Default is full batch.
     learning_rate: float
         Learning rate.
     checkpoint_freq: int
@@ -102,8 +105,8 @@ def main(
         Whether to load a previous checkpoint for continuing training.
     eval_freq: int
         Evaluation frequency.
-    flash: bool
-        Use flash attention or not.
+    verbose: bool
+        Wether to log attention maps eval metrics.
     """
 
     # -----------------------------------------------------------------------------
@@ -157,7 +160,6 @@ def main(
         emb_dropout=emb_dropout,
         n_head=n_head,
         n_layer=n_layer,
-        flash=flash,
     )
 
     losses = np.empty(nb_epochs)
@@ -169,7 +171,6 @@ def main(
     logger.info(f"Model: {model}.")
 
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)
-    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=nb_epochs // 3, gamma=0.5)
 
     logger.info(f"Device used: {device}.")
     model.to(device)
@@ -187,7 +188,6 @@ def main(
             sys.exit()
         model.load_state_dict(checkpoint["model_state_dict"])
         optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
-        scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
         losses[:epoch] = checkpoint["losses"][:epoch]
     else:
         epoch = 0
@@ -275,7 +275,6 @@ def main(
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-            scheduler.step()
 
             with torch.no_grad():
                 running_loss += loss.item()
@@ -296,7 +295,6 @@ def main(
                     "epoch": epoch,
                     "model_state_dict": model.state_dict(),
                     "optimizer_state_dict": optimizer.state_dict(),
-                    "scheduler_state_dict": scheduler.state_dict(),
                     "losses": losses,
                     "acc_by_len": acc_by_len,
                     "test_acc_by_len": test_acc_by_len,
