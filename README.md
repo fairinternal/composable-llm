@@ -2,6 +2,14 @@
 
 ## TODOS
 
+- make data processing and evaluation scripts more modular.
+
+- integrate better attention map metrics
+- write scripts to launch on the cluster
+
+- find a better implementation for the dataloader.
+Put it outside of the training loop, and just call a dataset name in the training loop.
+
 Clear TODO:
 - [ ] Find data with clean the attention maps, or change the training to make it cleaner.
     - implement automatic metric to find those clean maps (option: do it for all the matrix we predicted).
