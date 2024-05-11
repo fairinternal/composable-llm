@@ -43,8 +43,8 @@ class EvaluationIO:
             self.ind = past_timestamps.argmax() + 1
             self.evals = np.empty((nb_evals + self.ind, eval_dim), dtype=float)
             self.timestamps = np.full(nb_evals + self.ind, -1, dtype=int)
-            self.evals[: self.ind] = past_evals
-            self.timestamps[: self.ind] = past_timestamps
+            self.evals[: self.ind] = past_evals[: self.ind]
+            self.timestamps[: self.ind] = past_timestamps[: self.ind]
 
     def __call__(self, timestamp, evals):
         """
@@ -57,6 +57,6 @@ class EvaluationIO:
         evals: np.ndarray
             Evaluation vector.
         """
-        self.ind += 1
         self.evals[self.ind] = evals
         self.timestamps[self.ind] = timestamp
+        self.ind += 1
