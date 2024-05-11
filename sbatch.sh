@@ -48,17 +48,17 @@ write_script () {
 #SBATCH --signal=B:SIGUSR1@120
 
 #SBATCH --job-name=${EXP_NAME}_${NAME}
-#SBATCH --output=${OUTPUT_FOLDER}/%j/%j.out
-#SBATCH --error=${OUTPUT_FOLDER}/%j/%j.err
+#SBATCH --output=${OUTPUT_FOLDER}/%A_%a/%j.out
+#SBATCH --error=${OUTPUT_FOLDER}/%A_%a/%j.err
 #SBATCH --open-mode=append
 
-mkdir -p ${OUTPUT_FOLDER}/\${SLURM_JOB_ID}
+mkdir -p ${OUTPUT_FOLDER}/\${SLURM_ARRAY_JOB_ID}_\${SLURM_ARRAY_TASK_ID}
 
 term_handler()
 {
         echo "Caught termination signal. Killing the process"
         exit -1
-        rm ${OUTPUT_FOLDER}/\${SLURM_JOB_ID}/running
+        rm ${OUTPUT_FOLDER}/\${SLURM_ARRAY_JOB_ID}_\${SLURM_ARRAY_TASK_ID}/running
 }
 
 trap 'term_handler' TERM
@@ -75,8 +75,8 @@ for i in {1..\${#PARAMS}}; do
 done
 
 srun --unbuffered \\
-    --output=${OUTPUT_FOLDER}/%j/%j_%t.out \\
-    --error=${OUTPUT_FOLDER}/%j/%j_%t.err \\
+    --output=${OUTPUT_FOLDER}/%A_%a/%A_%a_%t.out \\
+    --error=${OUTPUT_FOLDER}/%A_%a/%A_%a_%t.err \\
     python ${CODE_FOLDER}/src/cot/train.py \\
     --problem ${PROBLEM} \\
     --nb_len ${NB_LEN} \\
