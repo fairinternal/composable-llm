@@ -33,20 +33,17 @@ setup_exp () {
     cp -r ${PWD}/* ${CODE_FOLDER}
 }
 
-#SBATCH --constraint=volta32gb
 write_script () {
     echo """#!/bin/zsh
-#SBATCH --time=48:00:00
-#SBATCH --time=00:05:00
+#SBATCH --time=${TIME}
 #SBATCH --nodes=${NODES}
+#SBATCH --constraint=volta32gb
 #SBATCH --ntasks-per-node=${WORLD_SIZE}
-#SBATCH --mem=320G
-#SBATCH --mem=16G
-#SBATCH --cpus-per-task=10
-#SBATCH --cpus-per-task=2
+#SBATCH --mem=${MEM_GB}G
+#SBATCH --cpus-per-task=${CPUS_PER_TASK}
 #SBATCH --gpus=${WORLD_SIZE}
 #SBATCH --gpus-per-node=${WORLD_SIZE}
-#SBATCH --partition=scavenge
+#SBATCH --partition=${PARTITION}
 #SBATCH --array=1-${ARRAY_SIZE}
 #SBATCH --signal=B:SIGUSR1@120
 
@@ -110,8 +107,13 @@ touch ${OUTPUT_FOLDER}/\${SLURM_JOB_ID}/done
 EXP_NAME="binary-copy"
 COMMENT="pretrain models"
 
-NODES=1
+TIME=24:00:00
+MEM_GB=128
 WORLD_SIZE=1
+CPUS_PER_TASK=10
+NODES=1
+PARTITION=learnfair
+PARTITION=scavenge
 ###########################
 
 ### Default config ###
