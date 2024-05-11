@@ -16,11 +16,12 @@ in the root directory of this source tree.
 
 import logging
 
+import fire
 import numpy as np
 import torch
 from torch.utils.data import Dataset, WeightedRandomSampler
 
-from cot.config import RAW_DIR
+from cot.config import RAW_DIR, RNG
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +32,15 @@ logger = logging.getLogger(__name__)
 
 
 class SequenceDataset(Dataset):
+    """
+    Attributes
+    ----------
+    data: tensor of size (nb_data, seq_len)
+        Tensor with data ordered by sequence length.
+    indices: tensor of int of size (len)
+        Indices to delimitate difference sequence lengths.
+    """
+
     data_dir = RAW_DIR
     prefix = None
 
@@ -48,13 +58,13 @@ class SequenceDataset(Dataset):
         raise NotImplementedError
 
     @classmethod
-    def generate_datafiles(cls, max_nb_data_per_len, split_probas_by_len, rng=None):
+    def generate_datafiles(cls, max_data_per_len, split_probas_by_len, rng=None):
         """
         Test/train split.
 
         Parameters
         ----------
-        max_nb_data_per_len : int
+        max_data_per_len : int
             Maximum number of data points to generate for each sequence length.
         split_probas_by_len : list of float
             Proportion of data to put in the training set for each sequence length.
@@ -70,7 +80,7 @@ class SequenceDataset(Dataset):
         cls.data_dir.mkdir(parents=True, exist_ok=True)
         for seq_len, split_proba in enumerate(split_probas_by_len):
             seq_len += 1
-            data = cls.generate_fixed_len_data(seq_len=seq_len, nb_data=max_nb_data_per_len, rng=rng)
+            data = cls.generate_fixed_len_data(seq_len=seq_len, nb_data=max_data_per_len, rng=rng)
             np.save(cls.data_dir / f"data_{seq_len}.npy", data)
             rng.shuffle(data)
             nb_train = int(split_proba * len(data))
@@ -156,7 +166,7 @@ class SequenceDataset(Dataset):
         self.data = torch.from_numpy(train_data)
         self.indices = torch.from_numpy(indices)
 
-    def set_data_probas(self, probas_by_len):
+    def get_sampler_by_lens(self, probas_by_len):
         """
         Set the probability of each data point.
 
@@ -174,45 +184,13 @@ class SequenceDataset(Dataset):
 
         assert abs(sum(probas_by_len) - 1) < 1e-6, "The sum of the probabilities must be equal to 1."
 
-        self.probas = torch.empty(self.indices[-1])
+        probas = torch.empty(self.indices[-1])
         for i in range(len(probas_by_len)):
             start, end = self.indices[i], self.indices[i + 1]
             if start != end:
-                self.probas[start:end] = probas_by_len[i] / (end - start)
+                probas[start:end] = probas_by_len[i] / (end - start)
 
-    def set_as_trainset(self, lengths, probas_by_len):
-        """
-        Data generation processing.
-
-        Parameters
-        ----------
-        lengths : list of int
-            List of sequence lengths.
-        probas_by_len : list of numpy.ndarray
-            Probability vector to sample a sequence of a given length.
-        rng : numpy.random.Generator, optional
-            Random number generator. If None, use the default generator.
-        """
-
-        logger.info(f"Loading training data for {self.prefix} problem.")
-        self.set_data(lengths, data_type="train")
-
-        logger.info("Setting sampler.")
-        self.set_data_probas(probas_by_len)
-        self.sampler = WeightedRandomSampler(self.probas, len(self.data))
-
-    def set_as_testset(self, lengths):
-        """
-        Data loading processing.
-
-        Parameters
-        ----------
-        lengths : list of int
-            List of sequence lengths.
-        """
-
-        logger.info(f"Loading test data for {self.prefix} problem.")
-        self.set_data(lengths, data_type="test")
+        return WeightedRandomSampler(probas, len(self.data))
 
     def __len__(self):
         return len(self.data)
@@ -527,3 +505,51 @@ class Parity(SequenceDataset):
     def get_len(cls, seq_len):
         """Full sequence length."""
         return 2 * seq_len + 1
+
+
+# -----------------------------------------------------------------------------
+# Main script
+# -----------------------------------------------------------------------------
+
+
+def main(
+    problem="binary-copy",
+    nb_len=8,
+    split_probas=0.5,
+    max_nb_data_per_len=2048,
+):
+    """
+    Training a Transformer model on a specified problem.
+
+    Paramters
+    ---------
+    problem: str
+        Problem to be solved. Currently supported are "binary-copy" and "parity".
+    nb_len: int
+        Maximum number of lenghts for sequences.
+    split_probas: float or list of float
+        Percentage of train/test split, eventually specified by length.
+    max_nb_data_per_len: int
+        Maximum number of data to generate for a given length.
+    """
+    match problem:
+        case "binary-copy":
+            Problem = BinaryCopy
+        case "parity":
+            Problem = Parity
+        case _:
+            raise ValueError(f"Problem {problem} not recognized.")
+
+    lengths = list(np.arange(nb_len) + 1)
+
+    if isinstance(split_probas, float):
+        split_probas_by_len = split_probas * np.ones(len(lengths))
+    else:
+        split_probas_by_len = np.array(split_probas)
+        assert len(split_probas_by_len) == nb_len, "`split_probas` should be of size `nb_len`"
+
+    Problem.generate_datafiles(max_nb_data_per_len, split_probas_by_len, RNG)
+
+
+if __name__ == "__main__":
+    fire.Fire(main)

@@ -36,7 +36,6 @@ logging.basicConfig(
 # Reproducibility and Device
 # -----------------------------------------------------------------------------
 
-rng = np.random.default_rng(0)
 
 torch.manual_seed(100)
 if torch.cuda.is_available():
@@ -49,8 +48,6 @@ else:
 def main(
     problem="binary-copy",
     nb_len=8,
-    split_probas=0.5,
-    max_nb_data_per_len=100_000,
     zipf_offset=0,
     zipf_coef=0,
     emb_dim=128,
@@ -75,10 +72,6 @@ def main(
         Problem to be solved. Currently supported are "binary-copy" and "parity".
     nb_len: int
         Maximum number of lenghts for sequences.
-    split_probas: float or list of float
-        Percentage of train/test split, eventually specified by length.
-    max_nb_data_per_len: int
-        Maximum number of data to generate for a given length.
     zipf_offset: float
         Index offset to the Zipf law generating sentence lengths.
     zipf_coef: float
@@ -124,32 +117,22 @@ def main(
     # hyperparameters
     lengths = list(np.arange(nb_len) + 1)
 
-    if isinstance(split_probas, float):
-        split_probas_by_len = split_probas * np.ones(len(lengths))
-    else:
-        split_probas_by_len = np.array(split_probas)
-        assert len(split_probas_by_len) == nb_len, "`split_probas` should be of size `nb_len`"
-
-    probas_by_len = (np.arange(len(lengths), dtype=float) + zipf_offset) ** (-zipf_coef)
-    probas_by_len /= probas_by_len.sum()
-
-    # main objects
-    if Problem.prefix == "copy":
-        Problem(vocab_size=20)
-
-    Problem.generate_datafiles(max_nb_data_per_len, split_probas_by_len, rng)
-
     trainset = Problem()
-    trainset.set_as_trainset(lengths, probas_by_len)
+    trainset.set_data(lengths, data_type="train")
 
     testset = Problem()
-    testset.set_as_testset(lengths)
+    testset.set_data(lengths, data_type="test")
 
     if batch_size is None:
         batch_size = len(trainset)
         logger.info("No batch size specified. Using gradient descent (full batch).")
 
-    loader = DataLoader(trainset, batch_size=batch_size, sampler=trainset.sampler)
+    # non-uniform sampler
+    probas_by_len = (np.arange(len(lengths), dtype=float) + zipf_offset) ** (-zipf_coef)
+    probas_by_len /= probas_by_len.sum()
+    sampler = trainset.get_sampler_by_lens(probas_by_len)
+
+    loader = DataLoader(trainset, batch_size=batch_size, sampler=sampler)
     logger.info(f"Number of training data: {len(trainset)}.")
 
     # --------------------------------------------------------------------------
@@ -197,7 +180,7 @@ def main(
         epoch = 0
 
     # --------------------------------------------------------------------------
-    # Evaluation Placeholder
+    # Evaluation Placeholders
     # --------------------------------------------------------------------------
 
     if load_checkpoint:

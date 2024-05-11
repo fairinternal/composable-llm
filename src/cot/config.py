@@ -11,8 +11,12 @@ in the root directory of this source tree.
 
 from pathlib import Path
 
+import numpy as np
+
 DATA_DIR = Path(__file__).parent.parent.parent / "data"
 RAW_DIR = DATA_DIR / "raw"
 PROCESSED_DIR = DATA_DIR / "processed"
 
 CHECKPOINT_DIR = Path(__file__).parent.parent.parent / "models"
+
+RNG = np.random.default_rng(0)
