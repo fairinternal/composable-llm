@@ -28,11 +28,6 @@ from cot.models import Transformer, TransformerConfig
 from cot.utils import handle_sig, handle_term
 
 logger = logging.getLogger(__name__)
-logging.basicConfig(
-    # format="{asctime} {levelname} [{filename}:{lineno}] {message}",
-    level=logging.INFO,
-    handlers=[logging.StreamHandler()],
-)
 
 # -----------------------------------------------------------------------------
 # Reproducibility and Device
@@ -185,6 +180,13 @@ def main(
     evaluator = SimpleEval(lengths)
     eval_dim = evaluator.eval_dim
 
+    def eval(model):
+        with torch.no_grad():
+            model.eval()
+            evals = evaluator(model, trainset, testset)
+        model.train()
+        return evals
+
     if load_checkpoint:
         nb_evals = (n_epochs - epoch) // eval_freq + 1
         report_eval = EvaluationIO(
@@ -193,37 +195,17 @@ def main(
     else:
         nb_evals = n_epochs // eval_freq + 1
         report_eval = EvaluationIO(nb_evals, eval_dim)
-
-    def eval(model):
-        with torch.no_grad():
-            model.eval()
-            evals = evaluator(model, trainset, testset)
-        model.train()
-        return evals
+        evals = eval(model)
+        report_eval(epoch, evals)
 
     # --------------------------------------------------------------------------
     # Training loop
     # --------------------------------------------------------------------------
 
     logger.info(f"Starting Training from epoch {epoch}.")
-    while True:
-
-        # evaluation
-        if not epoch % eval_freq:
-            evals = eval(model)
-            report_eval(epoch, evals)
-
-            accuracy = (evals[0 : len(lengths)] * probas_by_len).sum().item()
-            test_accuracy = (evals[len(lengths) : 2 * len(lengths)] * probas_by_len).sum().item()
-            logger.info(f"Epoch {epoch:5d}, Accuracy: {accuracy:.4f}, {test_accuracy:.4f}")
-
-        if epoch >= n_epochs:
-            break
-
-        epoch = epoch + 1
-
+    model.train()
+    while epoch < n_epochs:
         # training
-        model.train()
         running_loss = 0
         accuracy = 0
         for sequence in loader:
@@ -248,9 +230,18 @@ def main(
             with torch.no_grad():
                 running_loss += loss.item()
 
-        losses[epoch - 1] = loss
-
+        losses[epoch] = running_loss
+        epoch = epoch + 1
         logger.info(f"Epoch {epoch:5d}, Loss: {running_loss:.4f}")
+
+        # evaluation
+        if not epoch % eval_freq:
+            evals = eval(model)
+            report_eval(epoch, evals)
+
+            accuracy = (evals[0 : len(lengths)] * probas_by_len).sum().item()
+            test_accuracy = (evals[len(lengths) : 2 * len(lengths)] * probas_by_len).sum().item()
+            logger.info(f"Epoch {epoch:5d}, Accuracy: {accuracy:.4f}, {test_accuracy:.4f}")
 
         # checkpointing
         if not epoch % checkpoint_freq or epoch == n_epochs:
@@ -258,11 +249,6 @@ def main(
                 path = check_dir / "model.pth"
             else:
                 path = check_dir / f"model_{epoch}.pth"
-
-            if epoch == n_epochs:
-                logger.info("Training finished.")
-                evals = eval(model)
-                report_eval(epoch, evals)
 
             torch.save(
                 {
@@ -275,12 +261,18 @@ def main(
                 },
                 path,
             )
-
             logger.info(f"Checkpointing model at {path}.")
+    logger.info("Training finished.")
 
 
 if __name__ == "__main__":
     signal.signal(signal.SIGUSR1, handle_sig)
     signal.signal(signal.SIGTERM, handle_term)
+
+    logging.basicConfig(
+        # format="{asctime} {levelname} [{filename}:{lineno}] {message}",
+        level=logging.INFO,
+        handlers=[logging.StreamHandler()],
+    )
 
     fire.Fire(main)

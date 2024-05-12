@@ -2,37 +2,45 @@
 
 ## TODOS
 
-- make data processing and evaluation scripts more modular.
-- how to use Fire with DAP (debugger adapter protocol)?
+TODO NOW:
+- [ ] Finish to write the training loop to search for clear attention maps:
+    - Test attention evaluation. 
+    - Write scripts to launch runs on the cluster.
 
-- integrate better attention map metrics
-- write scripts to launch on the cluster
+Helpful tasks for Vivien:
+- learn to use Fire with DAP (debugger adapter protocol)?
 
-- find a better implementation for the dataloader.
-Put it outside of the training loop, and just call a dataset name in the training loop.
-
-Clear TODO:
-- [ ] Find data with clean the attention maps, or change the training to make it cleaner.
-    - implement automatic metric to find those clean maps (option: do it for all the matrix we predicted).
-    - maybe run stuffs on the cluster.
-- [ ] Look at skill transfert between binary problem and copying problem / look a bit into curriculum...
-- [ ] Look at how the substraction of position embeddings is performed by the first MLP.
-- [ ] Look at how the state updates is performed by the second MLP when we solve for the parity problem.
-- [ ] Look at how the work get shared across heads when we have too much capacity.
+TODO in a near future:
 - [ ] Implement a baseline without CoT
+- [ ] Make a better dataloader to explore different data mix and curriculum.
 
-- Nice things to have
-    - slurm launcher (with and without signal handling / resubmitting).
-    - wandb logging and good referential for experiments.
+The following is not really well organized, but it gives food for thoughts. We should focus on some meaningful experiments that are insightful beyond our toy setup.
 
-Longer term research goals:
+Research TODO:
+- [ ] Look at skill transfert between binary problem and copying problem / look a bit into curriculum... / look also at a mix of data / also mix of length.
+- [ ] Look at how the substraction of position embeddings is performed by the first MLP / look at the position embeddings (can we freeze them if the embedding dimension is big enough).
+- [ ] Look at how the state updates ($s = F(s, x)$) is performed by the second MLP when we solve for the parity problem.
+- [ ] Look at how the work get shared across heads when we have too much capacity.
+
+- TODO after the deadline
+
+Interesting experiments to run:
 - [ ] Have a special first token that indicates the problem that has generated the sentence. Check how the transformer reuses circuits for one tasks to the others (it will learn useful generic skills such as copying previous tokens, but will also need to go through specific circuits).
-
 
 Longer term implementation TODO:
 - Unit tests
 - Move EvaluationIO to a CSV file system
-- Be more coherent between `n`, `nb` or `num` (always use `n`).
+- Be more coherent between `n`, `nb` or `num` (always use `n`), and this kind of things in general (e.g., `batch_size` vs `bsz`).
+- Good logging and referential for experiments (maybe wandb).
+
+Simple questions:
+- does continuing training make the attention maps cleaner while the accuracy does not change? If yes, we can make a link with grokking and emergence of more functorial pattern (link with sparsity induced bias with SGD - Loucas paper).
+- empirical scaling law with respect sequence length, and embedding dimension (and how clean the attention matrices are) / look at optimal data mix.
+- check if curriculum change what is learned (i.e., are the iteration heads learned if we only solve the parity problem?)
+- ablation with respect to the batch size
+- investigate the small weird stuff on the attention map: it seems that there should be a different circuit hidden for a special position.
+- if we do a mix parity and binary, maybe we will force more to have the circuit we want
+- if we reduce the position embedding dimension, maybe we will have a cleaner structure appearing in the position embedding, that allows to find a rule for substraction, rather than memorize all substraction.
 
 ## Objective
 

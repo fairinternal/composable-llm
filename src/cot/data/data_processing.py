@@ -401,7 +401,7 @@ class Parity(SequenceDataset):
 
 def main(
     problem="binary-copy",
-    nb_len=8,
+    n_len=8,
     split_probas=0.5,
     max_nb_data_per_len=2048,
 ):
@@ -412,7 +412,7 @@ def main(
     ---------
     problem: str
         Problem to be solved. Currently supported are "binary-copy" and "parity".
-    nb_len: int
+    n_len: int
         Maximum number of lenghts for sequences.
     split_probas: float or list of float
         Percentage of train/test split, eventually specified by length.
@@ -427,16 +427,22 @@ def main(
         case _:
             raise ValueError(f"Problem {problem} not recognized.")
 
-    lengths = list(np.arange(nb_len) + 1)
+    lengths = list(np.arange(n_len) + 1)
 
     if isinstance(split_probas, float):
         split_probas_by_len = split_probas * np.ones(len(lengths))
     else:
         split_probas_by_len = np.array(split_probas)
-        assert len(split_probas_by_len) == nb_len, "`split_probas` should be of size `nb_len`"
+        assert len(split_probas_by_len) == n_len, "`split_probas` should be of size `n_len`"
 
     Problem.generate_datafiles(max_nb_data_per_len, split_probas_by_len, RNG)
 
 
 if __name__ == "__main__":
+    logging.basicConfig(
+        # format="{asctime} {levelname} [{filename}:{lineno}] {message}",
+        level=logging.INFO,
+        handlers=[logging.StreamHandler()],
+    )
+
     fire.Fire(main)
