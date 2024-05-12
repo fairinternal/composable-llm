@@ -40,6 +40,7 @@ class EvaluationIO:
             self.ind = 0
         else:
             assert past_timestamps is not None
+            assert eval_dim == past_evals.shape[1], "new evaluations should be of same dimension as former ones"
             self.ind = past_timestamps.argmax() + 1
             self.evals = np.empty((nb_evals + self.ind, eval_dim), dtype=float)
             self.timestamps = np.full(nb_evals + self.ind, -1, dtype=int)

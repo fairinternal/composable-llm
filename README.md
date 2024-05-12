@@ -4,7 +4,7 @@
 
 TODO NOW:
 - [ ] Finish to write the training loop to search for clear attention maps:
-    - check for evaluation correctness. 
+    - check for evaluation correctness. check for correctness of the unrolling in the attn_eval.meaning
     - Write scripts to launch runs on the cluster.
 
 TODO in a near future:
@@ -30,6 +30,7 @@ Longer term implementation TODO:
 - Be more coherent between `n`, `nb` or `num` (always use `n`), and this kind of things in general (e.g., `batch_size` vs `bsz`).
 - Good logging and referential for experiments (maybe wandb).
 - Put the token meaning somewhere (like in the config file), or in a tokenization folder, so to easily modify it without having to come back to every lines of code that uses specific values.
+- Be mindful of useless copy and CPU/GPU transfert of the data (e.g., in the evaluation script).
 
 Simple questions:
 - does continuing training make the attention maps cleaner while the accuracy does not change? If yes, we can make a link with grokking and emergence of more functorial pattern (link with sparsity induced bias with SGD - Loucas paper).

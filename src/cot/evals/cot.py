@@ -15,7 +15,8 @@ import torch
 class AccuracyEval:
 
     def __init__(self, lengths):
-        self.eval_dim = len(lengths)
+        self.meaning = ["acc_len_{leng}" for leng in lengths]
+        self.eval_dim = len(self.meaning)
 
     def __call__(self, model, dataset, pred=None, logits=None):
         """
@@ -68,7 +69,8 @@ class AccuracyEval:
 class GammarEval:
 
     def __init__(self):
-        self.eval_dim = 3
+        self.meaning = ["boi", "eoi", "eos"]
+        self.eval_dim = len(self.meaning)
 
     def __call__(self, model, dataset, pred=None, logits=None):
         """
@@ -85,10 +87,10 @@ class GammarEval:
         logits: Torch.tensor
             Pre-computed logits.
         """
+        device = list(model.parameters())[0].device
 
         if pred is None:
             if logits is None:
-                device = list(model.parameters())[0].device
                 data = dataset.data.to(device)
                 logits = model(data)
             pred = logits.argmax(dim=-1)
@@ -101,7 +103,7 @@ class GammarEval:
         tmp1 *= -1
         tmp1 += tmp.shape[1]
         tmp2 = tmp.argmax(dim=-1)
-        out[2](tmp1 == tmp2).to(float).mean()
+        out[2] = (tmp1 == tmp2).to(float).mean()
 
         return out
 
@@ -109,9 +111,9 @@ class GammarEval:
 class AttentionEval:
 
     def __init__(self, lengths):
-        meaning = []
+        self.meaning = []
         for leng in lengths:
-            meaning += [
+            self.meaning += [
                 f"attn0_inv_{leng}",
                 f"attn1_inv_{leng}",
                 f"attn0_peaky_{leng}",
@@ -134,10 +136,13 @@ class AttentionEval:
         attns: Torch.tensor
             Pre-computed attention maps.
         """
-        if attns is None:
-            _, attns = model(dataset.data, verbose=True)
+        device = list(model.parameters())[0].device
+        data = dataset.data.to(device)
 
-        attn_inv, attn_peaky = self.attention_metrics(dataset.data, attns)
+        if attns is None:
+            _, attns = model(data, verbose=True)
+
+        attn_inv, attn_peaky = self.attention_metrics(data, attns)
         return torch.hstack((attn_inv, attn_peaky)).flatten()
 
     @staticmethod
@@ -188,7 +193,23 @@ class AttentionEval:
         return attn_inv, attn_peaky
 
 
-class TotalEval:
+class FullEval:
 
     def __init__(self, lengths):
-        pass
+        self.acc_eval = AccuracyEval(lengths)
+        self.grammar_eval = GammarEval()
+        self.attn_eval = AttentionEval(lengths)
+        self.meaning = self.acc_eval.meaning + self.grammar_eval.meaning + self.attn_eval.meaning
+        self.eval_dim = len(self.meaning)
+
+    def __call__(self, model, dataset):
+        device = list(model.parameters())[0].device
+        data = dataset.data.to(device)
+        logits, attns = model(data, verbose=True)
+        pred = logits.argmax(dim=-1)
+
+        acc_eval = self.acc_eval(model, dataset, pred=pred, logits=logits)
+        grammar_eval = self.grammar_eval(model, dataset, pred=pred, logits=logits)
+        attn_eval = self.attn_eval(model, dataset, attns=attns)
+        out = torch.hstack((acc_eval, grammar_eval, attn_eval))
+        return out

@@ -23,7 +23,7 @@ from torch.utils.data import DataLoader
 from cot.config import CHECKPOINT_DIR
 from cot.data import BinaryCopy, Parity
 from cot.evals import EvaluationIO
-from cot.evals.cot import AccuracyEval
+from cot.evals.cot import FullEval
 from cot.models import Transformer, TransformerConfig
 from cot.utils import handle_sig, handle_term
 
@@ -177,8 +177,8 @@ def main(
     # Evaluation Placeholders
     # --------------------------------------------------------------------------
 
-    evaluator = AccuracyEval(lengths)
-    eval_dim = 2 * evaluator.eval_dim
+    evaluator = FullEval(lengths)
+    eval_dim = evaluator.eval_dim
 
     def eval(model):
         with torch.no_grad():
@@ -191,11 +191,11 @@ def main(
     if load_checkpoint:
         nb_evals = (n_epochs - epoch) // eval_freq + 1
         report_eval = EvaluationIO(
-            nb_evals, eval_dim, past_evals=checkpoint["evals"], past_timestamps=checkpoint["timestamps"]
+            nb_evals, 2 * eval_dim, past_evals=checkpoint["evals"], past_timestamps=checkpoint["timestamps"]
         )
     else:
         nb_evals = n_epochs // eval_freq + 1
-        report_eval = EvaluationIO(nb_evals, eval_dim)
+        report_eval = EvaluationIO(nb_evals, 2 * eval_dim)
         evals = eval(model)
         report_eval(epoch, evals)
 
@@ -241,7 +241,7 @@ def main(
             report_eval(epoch, evals)
 
             accuracy = 1 - (evals[0 : len(lengths)] * probas_by_len).sum().item()
-            test_accuracy = 1 - (evals[len(lengths) : 2 * len(lengths)] * probas_by_len).sum().item()
+            test_accuracy = 1 - (evals[eval_dim : eval_dim + len(lengths)] * probas_by_len).sum().item()
             logger.info(f"Epoch {epoch:5d}, Accuracy: {accuracy:.4f}, {test_accuracy:.4f}")
 
         # checkpointing
@@ -259,6 +259,7 @@ def main(
                     "losses": losses,
                     "evals": report_eval.evals,
                     "timestamps": report_eval.timestamps,
+                    "meaning": evaluator.meaning,
                 },
                 path,
             )
