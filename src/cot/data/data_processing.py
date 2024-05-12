@@ -399,7 +399,7 @@ class Parity(SequenceDataset):
 # -----------------------------------------------------------------------------
 
 
-def main(
+def data_processing(
     problem="binary-copy",
     n_len=8,
     split_probas=0.5,
@@ -445,4 +445,4 @@ if __name__ == "__main__":
         handlers=[logging.StreamHandler()],
     )
 
-    fire.Fire(main)
+    fire.Fire(data_processing)

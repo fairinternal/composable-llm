@@ -4,12 +4,12 @@
 
 TODO NOW:
 - [ ] Finish to write the training loop to search for clear attention maps:
-    - check for evaluation correctness. check for correctness of the unrolling in the attn_eval.meaning
     - Write scripts to launch runs on the cluster.
 
 TODO in a near future:
 - [ ] Implement a baseline without CoT
 - [ ] Make a better dataloader to explore different data mix and curriculum.
+    - be mindful of file name to avoid mixing, or overwriting stuffs.
 
 The following is not really well organized, but it gives food for thoughts. We should focus on some meaningful experiments that are insightful beyond our toy setup.
 

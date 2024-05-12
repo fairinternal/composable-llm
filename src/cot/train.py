@@ -42,7 +42,7 @@ else:
     device = torch.device("cpu")
 
 
-def main(
+def train(
     problem="binary-copy",
     n_len=8,
     zipf_offset=0,
@@ -276,4 +276,4 @@ if __name__ == "__main__":
         handlers=[logging.StreamHandler()],
     )
 
-    fire.Fire(main)
+    fire.Fire(train)
