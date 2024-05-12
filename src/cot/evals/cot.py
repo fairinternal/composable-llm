@@ -12,13 +12,13 @@ in the root directory of this source tree.
 import torch
 
 
-def attention_metrics(sequence, attentions):
+def attention_metrics(sequences, attentions):
     """
     Compute success metrics to CoT emergence.
 
     Parameters
     ----------
-    sequence: tensor of size (bsz, seq_len)
+    sequences: tensor of size (bsz, seq_len)
         Token sequences.
     attentions: tensore of size (n_layer=2, bsz, n_head=1, seq_len, seq_len)
         Attention maps.
@@ -30,7 +30,7 @@ def attention_metrics(sequence, attentions):
     attn_peaky: tensore of size (len, 2 * n_layer * n_head = 4)
         Success metrics for the attention maps. Higher is better.
     """
-    eois = torch.argmax((sequence == 1).to(int), dim=1)
+    eois = torch.argmax((sequences == 1).to(int), dim=1)
     all_eois = torch.unique(eois)
 
     attn_inv = torch.empty((len(all_eois), 2), device=eois.device, dtype=float)
@@ -177,3 +177,29 @@ class SimpleEval:
         eoi_err = eoi_err.float().mean()
 
         return bos_err, eoi_err, eos_err
+
+
+class AttentionEval:
+    def __init__(self, lengths):
+        meaning = []
+        for leng in lengths:
+            meaning += [
+                f"attn0_inv_{leng}",
+                f"attn1_inv_{leng}",
+                f"attn0_peaky_{leng}",
+                f"attn0_peaky_{leng}",
+                f"attn1_peaky_{leng}",
+                f"attn1_peaky_{leng}",
+            ]
+        self.meaning = [f"train_{stri}" for stri in meaning] + [f"train_{stri}" for stri in meaning]
+        self.eval_dim = len(self.meaning)
+
+    def __call__(self, model, trainset, testset):
+        res = []
+        for dataset in [trainset, testset]:
+            sequences = dataset.data
+            _, attns = model(sequences, verbose=True)
+            attn_inv, attn_peaky = attention_metrics(sequences, attns)
+            res.append(torch.hstack((attn_inv, attn_peaky)).flatten())
+
+        return torch.hstack(res)
