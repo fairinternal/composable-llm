@@ -30,7 +30,7 @@ setup_exp () {
     echo "${COMMENT}" > ${OUTPUT_FOLDER}/README.md
 
     # Copying the code to launch this version and be able to keep working here.
-    cp -r ${PWD}/* ${CODE_FOLDER}
+    cp -r ${PWD}/src/* ${CODE_FOLDER}
 }
 
 write_script () {
@@ -112,7 +112,7 @@ MEM_GB=128
 WORLD_SIZE=1
 CPUS_PER_TASK=10
 NODES=1
-PARTITION=learnfair
+# PARTITION=learnfair
 PARTITION=scavenge
 ###########################
 
@@ -136,20 +136,34 @@ EVAL_FREQ=10
 FLASH=None
 ######################
 
-### Define models ###
+######### Define models #########
 simple_model () {
     MODEL="simple"
     N_HEAD=1
-    N_LAYER=1
-    NB_EPOCHS=1500
+    N_LAYER=2
+    NB_EPOCHS=100000
 }
-#####################
 
-### List configs to iterate on ###
+# List config to iterate on
 MODEL_CONFIGS=(
     simple_model
 )
-###################################
+#################################
+
+### Config data ###
+long_seq () {
+    NB_LEN=30
+    SPLIT_PROBAS=0.5
+    MAX_NB_DATA_PER_LEN=1024
+    ZIPF_OFFSET=0
+    ZIPF_COEF=0
+}
+
+# List config to iterate on
+DATA_CONFIGS=(
+    simple_model
+)
+###################
 
 ### Parameters sweep ###
 # This is where you define the parameters sweep.
@@ -157,12 +171,12 @@ MODEL_CONFIGS=(
 # Then define the values for each parameter.
 # The values will be combined in the order they are defined.
 # Try to keep them aligned as much as possible for clarity.
-PARAMS=(LR      EMB_DIM)
+PARAMS=(EMB_DIM)
 PARAMS_SWEEP=(
-        1e-4    128
-        3e-4    128
-        6e-4    128
-        1e-3    128
+        32
+        64
+        128
+        256
 )
 ############################
 ARRAY_SIZE=`expr ${#PARAMS_SWEEP} / ${#PARAMS}`
@@ -176,6 +190,10 @@ name_exp () {
 for setup_model in $MODEL_CONFIGS
 do
 $setup_model
+# Iterate through all the data configs
+for setup_data in $DATA_CONFIGS
+do
+$setup_data
 
 # Execute the setup functions
 name_exp
@@ -189,4 +207,5 @@ write_script
 # Launch the job
 sbatch ${SCRIPTS_FOLDER}/launch.sh
 
+done
 done
