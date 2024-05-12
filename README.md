@@ -5,7 +5,6 @@
 TODO NOW:
 - [ ] Finish to write the training loop to search for clear attention maps:
     - check for evaluation correctness. 
-    - integrate them into the training loop.
     - Write scripts to launch runs on the cluster.
 
 TODO in a near future:

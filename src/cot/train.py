@@ -240,8 +240,8 @@ def main(
             evals = eval(model)
             report_eval(epoch, evals)
 
-            accuracy = (evals[0 : len(lengths)] * probas_by_len).sum().item()
-            test_accuracy = (evals[len(lengths) : 2 * len(lengths)] * probas_by_len).sum().item()
+            accuracy = 1 - (evals[0 : len(lengths)] * probas_by_len).sum().item()
+            test_accuracy = 1 - (evals[len(lengths) : 2 * len(lengths)] * probas_by_len).sum().item()
             logger.info(f"Epoch {epoch:5d}, Accuracy: {accuracy:.4f}, {test_accuracy:.4f}")
 
         # checkpointing
