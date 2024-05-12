@@ -49,14 +49,14 @@ else:
 
 def main(
     problem="binary-copy",
-    nb_len=8,
+    n_len=8,
     zipf_offset=0,
     zipf_coef=0,
     emb_dim=128,
     emb_dropout=0.1,
     n_head=1,
     n_layer=2,
-    nb_epochs=1000,
+    n_epochs=1000,
     batch_size=None,
     learning_rate=1e-3,
     checkpoint_freq=100,
@@ -71,7 +71,7 @@ def main(
     ---------
     problem: str
         Problem to be solved. Currently supported are "binary-copy" and "parity".
-    nb_len: int
+    n_len: int
         Maximum number of lenghts for sequences.
     zipf_offset: float
         Index offset to the Zipf law generating sentence lengths.
@@ -85,7 +85,7 @@ def main(
         Number of attention heads.
     n_layer: int
         Number of layers.
-    nb_epochs: int
+    n_epochs: int
         Total number of training epochs.
     batch_size: int
         Batch size. Default is full batch.
@@ -114,7 +114,7 @@ def main(
             raise ValueError(f"Problem {problem} not recognized.")
 
     # hyperparameters
-    lengths = list(np.arange(nb_len) + 1)
+    lengths = list(np.arange(n_len) + 1)
 
     trainset = Problem()
     trainset.set_data(lengths, data_type="train")
@@ -148,7 +148,7 @@ def main(
         n_layer=n_layer,
     )
 
-    losses = np.empty(nb_epochs)
+    losses = np.empty(n_epochs)
 
     check_dir = CHECKPOINT_DIR / Problem.prefix
     check_dir.mkdir(parents=True, exist_ok=True)
@@ -169,8 +169,8 @@ def main(
 
         epoch = checkpoint["epoch"]
 
-        if epoch > nb_epochs:
-            logger.error(f"Model has been trained for {epoch} epochs, which is higher than {nb_epochs}")
+        if epoch > n_epochs:
+            logger.error(f"Model has been trained for {epoch} epochs, which is higher than {n_epochs}")
             sys.exit()
         model.load_state_dict(checkpoint["model_state_dict"])
         optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
@@ -186,13 +186,20 @@ def main(
     eval_dim = evaluator.eval_dim
 
     if load_checkpoint:
-        nb_evals = (nb_epochs - epoch) // eval_freq + 1
+        nb_evals = (n_epochs - epoch) // eval_freq + 1
         report_eval = EvaluationIO(
             nb_evals, eval_dim, past_evals=checkpoint["evals"], past_timestamps=checkpoint["timestamps"]
         )
     else:
-        nb_evals = nb_epochs // eval_freq + 1
+        nb_evals = n_epochs // eval_freq + 1
         report_eval = EvaluationIO(nb_evals, eval_dim)
+
+    def eval(model):
+        with torch.no_grad():
+            model.eval()
+            evals = evaluator(model, trainset, testset)
+        model.train()
+        return evals
 
     # --------------------------------------------------------------------------
     # Training loop
@@ -203,16 +210,14 @@ def main(
 
         # evaluation
         if not epoch % eval_freq:
-            with torch.no_grad():
-                model.eval()
-                evals = evaluator(model, trainset, testset)
-                report_eval(epoch, evals)
-                accuracy = (evals[0 : len(lengths)] * probas_by_len).sum().item()
-                test_accuracy = (evals[len(lengths) : 2 * len(lengths)] * probas_by_len).sum().item()
+            evals = eval(model)
+            report_eval(epoch, evals)
 
+            accuracy = (evals[0 : len(lengths)] * probas_by_len).sum().item()
+            test_accuracy = (evals[len(lengths) : 2 * len(lengths)] * probas_by_len).sum().item()
             logger.info(f"Epoch {epoch:5d}, Accuracy: {accuracy:.4f}, {test_accuracy:.4f}")
 
-        if epoch >= nb_epochs:
+        if epoch >= n_epochs:
             break
 
         epoch = epoch + 1
@@ -248,11 +253,16 @@ def main(
         logger.info(f"Epoch {epoch:5d}, Loss: {running_loss:.4f}")
 
         # checkpointing
-        if not epoch % checkpoint_freq or epoch == nb_epochs:
+        if not epoch % checkpoint_freq or epoch == n_epochs:
             if overwrite_checkpoint:
                 path = check_dir / "model.pth"
             else:
                 path = check_dir / f"model_{epoch}.pth"
+
+            if epoch == n_epochs:
+                logger.info("Training finished.")
+                evals = eval(model)
+                report_eval(epoch, evals)
 
             torch.save(
                 {
