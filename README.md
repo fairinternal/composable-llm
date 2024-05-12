@@ -4,11 +4,9 @@
 
 TODO NOW:
 - [ ] Finish to write the training loop to search for clear attention maps:
-    - Test attention evaluation. 
+    - check for evaluation correctness. 
+    - integrate them into the training loop.
     - Write scripts to launch runs on the cluster.
-
-Helpful tasks for Vivien:
-- learn to use Fire with DAP (debugger adapter protocol)?
 
 TODO in a near future:
 - [ ] Implement a baseline without CoT
@@ -32,6 +30,7 @@ Longer term implementation TODO:
 - Move EvaluationIO to a CSV file system
 - Be more coherent between `n`, `nb` or `num` (always use `n`), and this kind of things in general (e.g., `batch_size` vs `bsz`).
 - Good logging and referential for experiments (maybe wandb).
+- Put the token meaning somewhere (like in the config file), or in a tokenization folder, so to easily modify it without having to come back to every lines of code that uses specific values.
 
 Simple questions:
 - does continuing training make the attention maps cleaner while the accuracy does not change? If yes, we can make a link with grokking and emergence of more functorial pattern (link with sparsity induced bias with SGD - Loucas paper).

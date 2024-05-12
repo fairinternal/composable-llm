@@ -23,7 +23,7 @@ from torch.utils.data import DataLoader
 from cot.config import CHECKPOINT_DIR
 from cot.data import BinaryCopy, Parity
 from cot.evals import EvaluationIO
-from cot.evals.cot import SimpleEval
+from cot.evals.cot import AccuracyEval
 from cot.models import Transformer, TransformerConfig
 from cot.utils import handle_sig, handle_term
 
@@ -177,15 +177,16 @@ def main(
     # Evaluation Placeholders
     # --------------------------------------------------------------------------
 
-    evaluator = SimpleEval(lengths)
-    eval_dim = evaluator.eval_dim
+    evaluator = AccuracyEval(lengths)
+    eval_dim = 2 * evaluator.eval_dim
 
     def eval(model):
         with torch.no_grad():
             model.eval()
-            evals = evaluator(model, trainset, testset)
+            train_evals = evaluator(model, trainset)
+            test_evals = evaluator(model, testset)
         model.train()
-        return evals
+        return torch.hstack((train_evals, test_evals))
 
     if load_checkpoint:
         nb_evals = (n_epochs - epoch) // eval_freq + 1
