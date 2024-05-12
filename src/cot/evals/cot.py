@@ -61,7 +61,7 @@ class AccuracyEval:
         # group and process sequences by lengths
         for i, eoi in enumerate(all_eois):
             ind = eois == eoi
-            errors_by_len[i] = seq_errors[ind].to(float).mean()
+            errors_by_len[i] = 1 - seq_errors[ind].to(float).mean()
 
         return errors_by_len
 
@@ -160,9 +160,9 @@ class AttentionEval:
         Returns
         -------
         attn_inv: tensor of size (len, n_layer * n_head = 2)
-            Score of invarance of attention to token sequence. Lower is better.
+            Score of invarance of attention to token sequence.
         attn_peaky: tensore of size (len, 2 * n_layer * n_head = 4)
-            Success metrics for the attention maps. Higher is better.
+            Success metrics for the attention maps.
         """
         eois = torch.argmax((sequences == 1).to(int), dim=1)
         all_eois = torch.unique(eois)
@@ -182,8 +182,8 @@ class AttentionEval:
             attn1 = torch.diagonal(attentions[1, ind, 0, eoi : eos - 1, 1:eoi], dim1=1, dim2=2)
 
             # how does attention change for different sequences
-            attn_inv[i, 0] = attn0.std(dim=0).mean()
-            attn_inv[i, 1] = attn1.std(dim=0).mean()
+            attn_inv[i, 0] = 1 - attn0.std(dim=0).mean()
+            attn_inv[i, 1] = 1 - attn1.std(dim=0).mean()
 
             # how much the attention is picky
             attn_peaky[i, 0] = attn0.mean()

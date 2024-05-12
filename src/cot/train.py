@@ -127,7 +127,7 @@ def main(
     sampler = trainset.get_sampler_by_len(probas_by_len)
 
     loader = DataLoader(trainset, batch_size=batch_size, sampler=sampler)
-    logger.info(f"Number of training data: {len(trainset)}.")
+    logger.info(f"Problem: {Problem.prefix}. Number of training data: {len(trainset)}.")
 
     # --------------------------------------------------------------------------
     # Model
@@ -208,7 +208,6 @@ def main(
     while epoch < n_epochs:
         # training
         running_loss = 0
-        accuracy = 0
         for sequence in loader:
             sequence = sequence.to(device=device, dtype=torch.long)
 
@@ -240,8 +239,8 @@ def main(
             evals = eval(model)
             report_eval(epoch, evals)
 
-            accuracy = 1 - (evals[0 : len(lengths)] * probas_by_len).sum().item()
-            test_accuracy = 1 - (evals[eval_dim : eval_dim + len(lengths)] * probas_by_len).sum().item()
+            accuracy = (evals[0 : len(lengths)] * probas_by_len).sum().item()
+            test_accuracy = (evals[eval_dim : eval_dim + len(lengths)] * probas_by_len).sum().item()
             logger.info(f"Epoch {epoch:5d}, Accuracy: {accuracy:.4f}, {test_accuracy:.4f}")
 
         # checkpointing
