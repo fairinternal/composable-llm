@@ -32,6 +32,11 @@ class AccuracyEval:
             Pre-computed prediction.
         logits: Torch.tensor
             Pre-computed logits.
+
+        Returns
+        -------
+        errors_by_len: torch.Tensor of n_len
+            Full sentence accuracy conditioned over sequence lengths.
         """
         device = list(model.parameters())[0].device
         data = dataset.data.to(device=device, dtype=torch.long)
@@ -74,7 +79,7 @@ class GammarEval:
 
     def __call__(self, model, dataset, pred=None, logits=None):
         """
-        Compute sequences grammar correctness
+        Compute sequences grammar correctness.
 
         Parameters
         ----------
@@ -86,6 +91,11 @@ class GammarEval:
             Pre-computed prediction.
         logits: Torch.tensor
             Pre-computed logits.
+
+        Returns
+        -------
+        out: torch.Tensor of size 6 * n_len
+            Metrics evaluating if boi and eoi appears only once and if eos is a 'sinking' state.
         """
         device = list(model.parameters())[0].device
 
@@ -116,16 +126,16 @@ class AttentionEval:
             self.meaning += [
                 f"attn0_inv_{leng}",
                 f"attn1_inv_{leng}",
-                f"attn0_peaky_{leng}",
-                f"attn0_peaky_{leng}",
-                f"attn1_peaky_{leng}",
-                f"attn1_peaky_{leng}",
+                f"attn0_peaky_abs_{leng}",
+                f"attn0_peaky_thres_{leng}",
+                f"attn1_peaky_abs_{leng}",
+                f"attn1_peaky_thres_{leng}",
             ]
         self.eval_dim = len(self.meaning)
 
     def __call__(self, model, dataset, attns=None):
         """
-        Compute attention scores
+        Compute attention scores.
 
         Parameters
         ----------
@@ -135,6 +145,11 @@ class AttentionEval:
             Dataset to compute scores.
         attns: Torch.tensor
             Pre-computed attention maps.
+
+        Returns
+        -------
+        out: torch.Tensor of size 6 * n_len
+            Metrics evaluating attention heads peakiness and invariance to token.
         """
         device = list(model.parameters())[0].device
         data = dataset.data.to(device)
