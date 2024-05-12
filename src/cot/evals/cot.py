@@ -64,8 +64,8 @@ class SimpleEval:
         self.eval_dim = 2 * len(lengths) + 6
 
     def __call__(self, model, trainset, testset):
-        _, seq_err, spe_err = trainset.eval_model(model, special=True)
-        _, test_seq_err, test_spe_err = testset.eval_model(model, special=True)
+        _, seq_err, spe_err = self.eval_model(trainset, model, special=True)
+        _, test_seq_err, test_spe_err = self.eval_model(testset, model, special=True)
         return torch.concat((1 - seq_err.cpu(), 1 - test_seq_err.cpu(), 1 - spe_err.cpu(), 1 - test_spe_err.cpu()))
 
     def eval_model(self, dataset, model, batch_size=None, special=False):
