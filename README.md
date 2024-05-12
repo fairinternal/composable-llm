@@ -3,6 +3,7 @@
 ## TODOS
 
 - make data processing and evaluation scripts more modular.
+- how to use Fire with DAP (debugger adapter protocol)?
 
 - integrate better attention map metrics
 - write scripts to launch on the cluster
@@ -26,6 +27,12 @@ Clear TODO:
 
 Longer term research goals:
 - [ ] Have a special first token that indicates the problem that has generated the sentence. Check how the transformer reuses circuits for one tasks to the others (it will learn useful generic skills such as copying previous tokens, but will also need to go through specific circuits).
+
+
+Longer term implementation TODO:
+- Unit tests
+- Move EvaluationIO to a CSV file system
+- Be more coherent between `n`, `nb` or `num` (always use `n`).
 
 ## Objective
 
