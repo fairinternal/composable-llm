@@ -189,13 +189,13 @@ def train(
         return torch.hstack((train_evals, test_evals))
 
     if load_checkpoint:
-        nb_evals = (n_epochs - epoch) // eval_freq + 1
+        n_evals = (n_epochs - epoch) // eval_freq + 1
         report_eval = EvaluationIO(
-            nb_evals, 2 * eval_dim, past_evals=checkpoint["evals"], past_timestamps=checkpoint["timestamps"]
+            n_evals, 2 * eval_dim, past_evals=checkpoint["evals"], past_timestamps=checkpoint["timestamps"]
         )
     else:
-        nb_evals = n_epochs // eval_freq + 1
-        report_eval = EvaluationIO(nb_evals, 2 * eval_dim)
+        n_evals = n_epochs // eval_freq + 1
+        report_eval = EvaluationIO(n_evals, 2 * eval_dim)
         evals = eval(model)
         report_eval(epoch, evals)
 
