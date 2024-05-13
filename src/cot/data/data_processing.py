@@ -347,11 +347,11 @@ class Copy(SequenceDataset):
 class Parity(SequenceDataset):
     prefix = "parity"
 
-    def __init__(self, save_dir=None):
+    def __init__(self, cot=True, save_dir=None):
         super().__init__(save_dir=save_dir)
+        self.cot = cot
 
-    @classmethod
-    def generate_fixed_len_data(cls, seq_len, n_data, rng=None):
+    def generate_fixed_len_data(self, seq_len, n_data, rng=None):
         """
         Generate parity data with fixed sequence length.
 
@@ -382,7 +382,7 @@ class Parity(SequenceDataset):
         # allocate memory
         if 2**seq_len < n_data:
             n_data = 2**seq_len
-        length = cls.get_len(seq_len)
+        length = self.get_len(seq_len)
         data = np.empty((n_data, length), dtype=np.int32)
 
         # input data
@@ -397,16 +397,21 @@ class Parity(SequenceDataset):
         # end of input
         data[:, seq_len] = -2
 
-        # CoT data
-        data[:, seq_len + 1 :] = np.cumsum(data[:, :seq_len], axis=1) % 2
+        if self.cot:
+            # CoT data
+            data[:, seq_len + 1 :] = np.cumsum(data[:, :seq_len], axis=1) % 2
+        else:
+            data[:, seq_len + 1] = np.sum(data[:, :seq_len], axis=1) % 2
         data += 3
 
         return data
 
-    @classmethod
-    def get_len(cls, seq_len):
+    def get_len(self, seq_len):
         """Full sequence length."""
-        return 2 * seq_len + 1
+        if self.cot:
+            return 2 * seq_len + 1
+        else:
+            return seq_len + 2
 
 
 # -----------------------------------------------------------------------------
