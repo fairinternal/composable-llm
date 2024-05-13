@@ -264,7 +264,13 @@ def train(
 
 
 if __name__ == "__main__":
+    import signal
+
     from cot.config import logging_datefmt, logging_format, logging_level
+    from cot.utils import handle_sig, handle_term
+
+    signal.signal(signal.SIGUSR1, handle_sig)
+    signal.signal(signal.SIGTERM, handle_term)
 
     logging.basicConfig(
         format=logging_format,
