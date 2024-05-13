@@ -34,5 +34,6 @@ RNG = np.random.default_rng(0)
 # Logging information
 # -----------------------------------------------------------------------------
 
+logging_datefmt = "%m-%d %H:%M:%S"
 logging_format = "{asctime} {levelname} [{filename}:{lineno}] {message}"
 logging_level = logging.INFO

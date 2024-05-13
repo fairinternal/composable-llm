@@ -439,10 +439,12 @@ def data_processing(
 
 
 if __name__ == "__main__":
-    from cot.config import logging_format, logging_level
+    from cot.config import logging_datefmt, logging_format, logging_level
 
     logging.basicConfig(
         format=logging_format,
+        datefmt=logging_datefmt,
+        style="{",
         level=logging_level,
         handlers=[logging.StreamHandler()],
     )
