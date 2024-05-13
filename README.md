@@ -17,7 +17,8 @@ Implementation going on - Vivien debug:
 - [ ] Think of the right ablation study to do.
 
 TODO for Alice or Wes:
-- [ ] Implement a baseline without CoT
+- [ ] Implement a baseline without CoT.
+- [ ] Implement a baseline with only one layer.
 
 Longer term implementation TODO:
 - Put the token meaning somewhere (like in the config file), or in a tokenization folder, so to easily modify it without having to come back to every lines of code that uses specific values.
