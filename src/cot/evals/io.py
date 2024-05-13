@@ -58,6 +58,6 @@ class EvaluationIO:
         evals: np.ndarray
             Evaluation vector.
         """
-        self.evals[self.ind] = evals
+        self.evals[self.ind] = evals.cpu()
         self.timestamps[self.ind] = timestamp
         self.ind += 1
