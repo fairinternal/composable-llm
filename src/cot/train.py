@@ -40,6 +40,7 @@ else:
 
 def train(
     problem="binary-copy",
+    data_dir=None,
     n_len=8,
     zipf_offset=0,
     zipf_coef=0,
@@ -63,6 +64,8 @@ def train(
     ---------
     problem: str
         Problem to be solved. Currently supported are "binary-copy" and "parity".
+    data_dir: str
+        Path to the directory where to save the data.
     n_len: int
         Maximum number of lenghts for sequences.
     zipf_offset: float
@@ -110,10 +113,10 @@ def train(
     # hyperparameters
     lengths = list(np.arange(n_len) + 1)
 
-    trainset = Problem()
+    trainset = Problem(save_dir=data_dir)
     trainset.set_data(lengths, data_type="train")
 
-    testset = Problem()
+    testset = Problem(save_dir=data_dir)
     testset.set_data(lengths, data_type="test")
 
     if batch_size is None:
@@ -149,7 +152,7 @@ def train(
     check_dir.mkdir(parents=True, exist_ok=True)
 
     model = Transformer(config)
-    logger.info(f"Model: {model}.")
+    logger.debug(f"Model: {model}.")
 
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)
 

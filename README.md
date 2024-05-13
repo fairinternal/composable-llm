@@ -3,34 +3,43 @@
 ## TODOS
 
 TODO NOW:
-- [ ] Finish to write the training loop to search for clear attention maps:
-    - Write scripts to launch runs on the cluster.
+- [ ] Write scripts to launch runs on the cluster
+    - Start with a grid on the batch_size: we only need to have id for experiments
+    - Continue with a grid on the number of data: we need to have id for the data mix
+    - Finish with code to do some curriculum learning, i.e., change the data mix as training goes by.
 
-TODO in a near future:
+Implementation going on - Vivien debug:
+    Use fire instead of argparse for the grid_run.
+
+- [ ] Explore first results
+    - Look at the attention maps: find some example where the attention maps are peaky.
+
+- [ ] Think of the right ablation study to do.
+
+TODO for Alice or Wes:
 - [ ] Implement a baseline without CoT
-- [ ] Make a better dataloader to explore different data mix and curriculum.
-    - be mindful of file name to avoid mixing, or overwriting stuffs.
 
+Longer term implementation TODO:
+- Put the token meaning somewhere (like in the config file), or in a tokenization folder, so to easily modify it without having to come back to every lines of code that uses specific values.
+    - Try to learn both the parity and the copying problem with a special first token that indicates the problem we are going to tackle. (We hope to see the iteration head that is reused by both problem, but the MLP that compute the successor states to change of behavior based on the first token).
+    - (former formulation:) Have a special first token that indicates the problem that has generated the sentence. Check how the transformer reuses circuits for one tasks to the others (it will learn useful generic skills such as copying previous tokens, but will also need to go through specific circuits).
+- Good logging and referential for experiments (maybe wandb).
+---
+- Unit tests.
+- Move EvaluationIO to a CSV file system.
+- Be more coherent between `n`, `nb` or `num` (always use `n`), and this kind of things in general (e.g., `batch_size` vs `bsz`).
+- Be mindful of useless copy and CPU/GPU transfert of the data (e.g., in the evaluation script).
+- Remove the data_sampler part and change it with a more generic data mix scheme. Eventually reweight samples in the training loss.
+- Use uuid to get unique id, and use json file to keep track of which experiments are doing what.
+
+## Disorganized thoughts 
 The following is not really well organized, but it gives food for thoughts. We should focus on some meaningful experiments that are insightful beyond our toy setup.
 
 Research TODO:
-- [ ] Look at skill transfert between binary problem and copying problem / look a bit into curriculum... / look also at a mix of data / also mix of length.
-- [ ] Look at how the substraction of position embeddings is performed by the first MLP / look at the position embeddings (can we freeze them if the embedding dimension is big enough).
-- [ ] Look at how the state updates ($s = F(s, x)$) is performed by the second MLP when we solve for the parity problem.
-- [ ] Look at how the work get shared across heads when we have too much capacity.
-
-- TODO after the deadline
-
-Interesting experiments to run:
-- [ ] Have a special first token that indicates the problem that has generated the sentence. Check how the transformer reuses circuits for one tasks to the others (it will learn useful generic skills such as copying previous tokens, but will also need to go through specific circuits).
-
-Longer term implementation TODO:
-- Unit tests
-- Move EvaluationIO to a CSV file system
-- Be more coherent between `n`, `nb` or `num` (always use `n`), and this kind of things in general (e.g., `batch_size` vs `bsz`).
-- Good logging and referential for experiments (maybe wandb).
-- Put the token meaning somewhere (like in the config file), or in a tokenization folder, so to easily modify it without having to come back to every lines of code that uses specific values.
-- Be mindful of useless copy and CPU/GPU transfert of the data (e.g., in the evaluation script).
+- Look at skill transfert between binary problem and copying problem / look a bit into curriculum... / look also at a mix of data / also mix of length.
+- Look at how the substraction of position embeddings is performed by the first MLP / look at the position embeddings (can we freeze them if the embedding dimension is big enough).
+- Look at how the state updates ($s = F(s, x)$) is performed by the second MLP when we solve for the parity problem.
+- Look at how the work get shared across heads when we have too much capacity, and how we might disambiguate the work done if we know the right circuit.
 
 Simple questions:
 - does continuing training make the attention maps cleaner while the accuracy does not change? If yes, we can make a link with grokking and emergence of more functorial pattern (link with sparsity induced bias with SGD - Loucas paper).
