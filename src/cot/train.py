@@ -56,6 +56,7 @@ def train(
     load_checkpoint=False,
     check_dir=None,
     eval_freq=10,
+    cot=True,
 ):
     """
     Training a Transformer model on a specified problem.
@@ -96,6 +97,8 @@ def train(
         Path to checkpoint directory.
     eval_freq: int
         Evaluation frequency.
+    cot: bool
+        Whether to use the chain-of-thoughts training process.
     """
 
     # -----------------------------------------------------------------------------
@@ -113,10 +116,10 @@ def train(
     # hyperparameters
     lengths = list(np.arange(n_len) + 1)
 
-    trainset = Problem(save_dir=data_dir)
+    trainset = Problem(cot=cot, save_dir=data_dir)
     trainset.set_data(lengths, data_type="train")
 
-    testset = Problem(save_dir=data_dir)
+    testset = Problem(cot=cot, save_dir=data_dir)
     testset.set_data(lengths, data_type="test")
 
     if batch_size is None:
