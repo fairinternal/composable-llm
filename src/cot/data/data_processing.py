@@ -16,7 +16,6 @@ in the root directory of this source tree.
 
 import logging
 
-import fire
 import numpy as np
 import torch
 from torch.utils.data import Dataset, WeightedRandomSampler
@@ -133,6 +132,8 @@ class SequenceDataset(Dataset):
         """
         assert isinstance(lengths, list), "`lenghts` must be an a list of int."
         assert data_type in ["train", "test"], "`data_type` must be 'train' or 'test'."
+
+        logging.info(f"Loading data from {self.save_dir}.")
 
         # memory preallocation
         # ... compute the data size by lenghts
@@ -456,6 +457,8 @@ def data_processing(
 
 
 if __name__ == "__main__":
+    import fire
+
     from cot.config import logging_datefmt, logging_format, logging_level
 
     logging.basicConfig(

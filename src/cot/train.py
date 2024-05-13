@@ -12,7 +12,6 @@ in the root directory of this source tree.
 import logging
 import sys
 
-import fire
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -54,6 +53,7 @@ def train(
     checkpoint_freq=100,
     overwrite_checkpoint=True,
     load_checkpoint=False,
+    check_dir=None,
     eval_freq=10,
 ):
     """
@@ -89,6 +89,8 @@ def train(
         Whether to overwrite existing checkpoints or not.
     load_checkpoint: bool
         Whether to load a previous checkpoint for continuing training.
+    check_dir: str
+        Path to checkpoint directory.
     eval_freq: int
         Evaluation frequency.
     """
@@ -142,7 +144,8 @@ def train(
 
     losses = np.empty(n_epochs)
 
-    check_dir = CHECKPOINT_DIR / Problem.prefix
+    if check_dir is None:
+        check_dir = CHECKPOINT_DIR / Problem.prefix
     check_dir.mkdir(parents=True, exist_ok=True)
 
     model = Transformer(config)
@@ -265,6 +268,8 @@ def train(
 
 if __name__ == "__main__":
     import signal
+
+    import fire
 
     from cot.config import logging_datefmt, logging_format, logging_level
     from cot.utils import handle_sig, handle_term
