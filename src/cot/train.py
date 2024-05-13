@@ -10,7 +10,6 @@ in the root directory of this source tree.
 """
 
 import logging
-import signal
 import sys
 
 import fire
@@ -25,14 +24,12 @@ from cot.data import BinaryCopy, Parity
 from cot.evals import EvaluationIO
 from cot.evals.cot import FullEval
 from cot.models import Transformer, TransformerConfig
-from cot.utils import handle_sig, handle_term
 
 logger = logging.getLogger(__name__)
 
 # -----------------------------------------------------------------------------
 # Reproducibility and Device
 # -----------------------------------------------------------------------------
-
 
 torch.manual_seed(100)
 if torch.cuda.is_available():
@@ -267,12 +264,19 @@ def train(
 
 
 if __name__ == "__main__":
+    import signal
+
+    from cot.config import logging_datefmt, logging_format, logging_level
+    from cot.utils import handle_sig, handle_term
+
     signal.signal(signal.SIGUSR1, handle_sig)
     signal.signal(signal.SIGTERM, handle_term)
 
     logging.basicConfig(
-        # format="{asctime} {levelname} [{filename}:{lineno}] {message}",
-        level=logging.INFO,
+        format=logging_format,
+        datefmt=logging_datefmt,
+        style="{",
+        level=logging_level,
         handlers=[logging.StreamHandler()],
     )
 
