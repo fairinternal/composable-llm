@@ -9,3 +9,7 @@ data/processed
 
 src/mathllm/
 tutorial/
+
+.vscode/
+
+Notes.md

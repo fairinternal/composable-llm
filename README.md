@@ -2,27 +2,44 @@
 
 ## TODOS
 
-## TODOS
+TODO NOW:
+- [ ] Finish to write the training loop to search for clear attention maps:
+    - Write scripts to launch runs on the cluster.
 
-Clear TODO:
-- [ ] Clear setup to run grid on cluster
-    - involving slurm
-    - involving wandb (create a shared team, add wandb login, add consistent format so that we do not overwrite on wandb).
-- [ ] Clear setting to show the attention maps
-    - I will push my change to a new branch
-- [ ] Make sure that we train well for different lengths, with 2 layers and 1 head per layer.
+TODO in a near future:
+- [ ] Implement a baseline without CoT
+- [ ] Make a better dataloader to explore different data mix and curriculum.
+    - be mindful of file name to avoid mixing, or overwriting stuffs.
 
-NeurIPS research goals:
-- [ ] Solve length generalization. Change the position embedding implementation, we have different options:
-    - try to use relative positional encoding.
-    - concatenate token embedding, positional embedding, and previous positional embedding, so that the network can easily learn to attend to the previous token.
-- [ ] Write test to understand how the transformer is solving the different tasks at hand. 
-In particular, since I have derived some potential circuit to solve this problem we could look at those.
-- [ ] Do ablation studies.
+The following is not really well organized, but it gives food for thoughts. We should focus on some meaningful experiments that are insightful beyond our toy setup.
 
-Longer term research goals:
-- [ ] Only train the network to predict correctly the parity count (either with no slack, i.e. intermediate tokens, or with some slack before).
+Research TODO:
+- [ ] Look at skill transfert between binary problem and copying problem / look a bit into curriculum... / look also at a mix of data / also mix of length.
+- [ ] Look at how the substraction of position embeddings is performed by the first MLP / look at the position embeddings (can we freeze them if the embedding dimension is big enough).
+- [ ] Look at how the state updates ($s = F(s, x)$) is performed by the second MLP when we solve for the parity problem.
+- [ ] Look at how the work get shared across heads when we have too much capacity.
+
+- TODO after the deadline
+
+Interesting experiments to run:
 - [ ] Have a special first token that indicates the problem that has generated the sentence. Check how the transformer reuses circuits for one tasks to the others (it will learn useful generic skills such as copying previous tokens, but will also need to go through specific circuits).
+
+Longer term implementation TODO:
+- Unit tests
+- Move EvaluationIO to a CSV file system
+- Be more coherent between `n`, `nb` or `num` (always use `n`), and this kind of things in general (e.g., `batch_size` vs `bsz`).
+- Good logging and referential for experiments (maybe wandb).
+- Put the token meaning somewhere (like in the config file), or in a tokenization folder, so to easily modify it without having to come back to every lines of code that uses specific values.
+- Be mindful of useless copy and CPU/GPU transfert of the data (e.g., in the evaluation script).
+
+Simple questions:
+- does continuing training make the attention maps cleaner while the accuracy does not change? If yes, we can make a link with grokking and emergence of more functorial pattern (link with sparsity induced bias with SGD - Loucas paper).
+- empirical scaling law with respect sequence length, and embedding dimension (and how clean the attention matrices are) / look at optimal data mix.
+- check if curriculum change what is learned (i.e., are the iteration heads learned if we only solve the parity problem?)
+- ablation with respect to the batch size
+- investigate the small weird stuff on the attention map: it seems that there should be a different circuit hidden for a special position.
+- if we do a mix parity and binary, maybe we will force more to have the circuit we want
+- if we reduce the position embedding dimension, maybe we will have a cleaner structure appearing in the position embedding, that allows to find a rule for substraction, rather than memorize all substraction.
 
 ## Objective
 

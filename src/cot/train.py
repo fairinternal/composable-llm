@@ -10,6 +10,7 @@ in the root directory of this source tree.
 """
 
 import logging
+import signal
 import sys
 
 import fire
@@ -21,41 +22,37 @@ from torch.utils.data import DataLoader
 
 from cot.config import CHECKPOINT_DIR
 from cot.data import BinaryCopy, Parity
+from cot.evals import EvaluationIO
+from cot.evals.cot import FullEval
 from cot.models import Transformer, TransformerConfig
+from cot.utils import handle_sig, handle_term
 
 logger = logging.getLogger(__name__)
-logging.basicConfig(
-    # format="{asctime} {levelname} [{filename}:{lineno}] {message}",
-    level=logging.INFO,
-    handlers=[logging.StreamHandler()],
-)
 
 # -----------------------------------------------------------------------------
 # Reproducibility and Device
 # -----------------------------------------------------------------------------
 
-rng = np.random.default_rng(0)
 
-torch.manual_seed(0)
+torch.manual_seed(100)
 if torch.cuda.is_available():
-    device = torch.device("cuda")
+    device = torch.device("cuda:0")
     torch.cuda.manual_seed_all(0)
 else:
     device = torch.device("cpu")
 
 
-def main(
+def train(
     problem="binary-copy",
-    nb_len=8,
-    split_probas=0.5,
-    max_nb_data_per_len=10_000,
+    n_len=8,
     zipf_offset=0,
     zipf_coef=0,
     emb_dim=128,
     emb_dropout=0.1,
-    n_head=2,
+    n_head=1,
     n_layer=2,
-    nb_epochs=1000,
+    n_epochs=1000,
+    batch_size=None,
     learning_rate=1e-3,
     checkpoint_freq=100,
     overwrite_checkpoint=True,
@@ -69,12 +66,8 @@ def main(
     ---------
     problem: str
         Problem to be solved. Currently supported are "binary-copy" and "parity".
-    nb_len: int
+    n_len: int
         Maximum number of lenghts for sequences.
-    split_probas: float or list of float
-        Percentage of train/test split, eventually specified by length.
-    max_nb_data_per_len: int
-        Maximum number of data to generate for a given length.
     zipf_offset: float
         Index offset to the Zipf law generating sentence lengths.
     zipf_coef: float
@@ -87,8 +80,10 @@ def main(
         Number of attention heads.
     n_layer: int
         Number of layers.
-    nb_epochs: int
+    n_epochs: int
         Total number of training epochs.
+    batch_size: int
+        Batch size. Default is full batch.
     learning_rate: float
         Learning rate.
     checkpoint_freq: int
@@ -114,31 +109,25 @@ def main(
             raise ValueError(f"Problem {problem} not recognized.")
 
     # hyperparameters
-    lengths = list(np.arange(nb_len) + 1)
-
-    if isinstance(split_probas, float):
-        split_probas_by_len = split_probas * np.ones(len(lengths))
-    else:
-        split_probas_by_len = np.array(split_probas)
-        assert len(split_probas_by_len) == nb_len, "`split_probas` should be of size `nb_len`"
-
-    probas_by_len = (np.arange(len(lengths), dtype=float) + zipf_offset) ** (-zipf_coef)
-    probas_by_len /= probas_by_len.sum()
-
-    # main objects
-    if Problem.prefix == "copy":
-        Problem(vocab_size=20)
-
-    Problem.generate_datafiles(max_nb_data_per_len, split_probas_by_len, rng)
+    lengths = list(np.arange(n_len) + 1)
 
     trainset = Problem()
-    trainset.set_as_trainset(lengths, probas_by_len)
+    trainset.set_data(lengths, data_type="train")
 
     testset = Problem()
-    testset.set_as_testset(lengths)
+    testset.set_data(lengths, data_type="test")
 
-    loader = DataLoader(trainset, batch_size=len(trainset), sampler=trainset.sampler)
-    logger.info(f"Number of training data: {len(trainset)}.")
+    if batch_size is None:
+        batch_size = len(trainset)
+        logger.info("No batch size specified. Using gradient descent (full batch).")
+
+    # non-uniform sampler
+    probas_by_len = (np.arange(len(lengths), dtype=float) + zipf_offset) ** (-zipf_coef)
+    probas_by_len /= probas_by_len.sum()
+    sampler = trainset.get_sampler_by_len(probas_by_len)
+
+    loader = DataLoader(trainset, batch_size=batch_size, sampler=sampler)
+    logger.info(f"Problem: {Problem.prefix}. Number of training data: {len(trainset)}.")
 
     # --------------------------------------------------------------------------
     # Model
@@ -154,7 +143,7 @@ def main(
         n_layer=n_layer,
     )
 
-    losses = np.empty(nb_epochs)
+    losses = np.empty(n_epochs)
 
     check_dir = CHECKPOINT_DIR / Problem.prefix
     check_dir.mkdir(parents=True, exist_ok=True)
@@ -163,7 +152,6 @@ def main(
     logger.info(f"Model: {model}.")
 
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)
-    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=nb_epochs // 3, gamma=0.5)
 
     logger.info(f"Device used: {device}.")
     model.to(device)
@@ -176,81 +164,50 @@ def main(
 
         epoch = checkpoint["epoch"]
 
-        if epoch > nb_epochs:
-            logger.error(f"Model has been trained for {epoch} epochs, which is higher than {nb_epochs}")
+        if epoch > n_epochs:
+            logger.error(f"Model has been trained for {epoch} epochs, which is higher than {n_epochs}")
             sys.exit()
         model.load_state_dict(checkpoint["model_state_dict"])
         optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
-        scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
         losses[:epoch] = checkpoint["losses"][:epoch]
     else:
         epoch = 0
 
     # --------------------------------------------------------------------------
-    # Evaluation Placeholder
+    # Evaluation Placeholders
     # --------------------------------------------------------------------------
 
+    evaluator = FullEval(lengths)
+    eval_dim = evaluator.eval_dim
+
+    def eval(model):
+        with torch.no_grad():
+            model.eval()
+            train_evals = evaluator(model, trainset)
+            test_evals = evaluator(model, testset)
+        model.train()
+        return torch.hstack((train_evals, test_evals))
+
     if load_checkpoint:
-        nb_eval = (nb_epochs - epoch) // eval_freq + 1
-        eval = checkpoint["evals"].argmax() + 1
-
-        acc_by_len = np.empty((nb_eval + eval, len(lengths)))
-        test_acc_by_len = np.empty((nb_eval + eval, len(lengths)))
-        spe_acc = np.empty((nb_eval + eval, 3))
-        test_spe_acc = np.empty((nb_eval + eval, 3))
-        evals = np.full(nb_eval + eval, -1, dtype=int)
-
-        acc_by_len[:eval] = checkpoint["acc_by_len"][:eval]
-        test_acc_by_len[:eval] = checkpoint["test_acc_by_len"][:eval]
-        spe_acc[:eval] = checkpoint["spe_acc"][:eval]
-        test_spe_acc[:eval] = checkpoint["test_spe_acc"][:eval]
-        evals[:eval] = checkpoint["evals"][:eval]
-
-        epoch = checkpoint["epoch"]
+        nb_evals = (n_epochs - epoch) // eval_freq + 1
+        report_eval = EvaluationIO(
+            nb_evals, 2 * eval_dim, past_evals=checkpoint["evals"], past_timestamps=checkpoint["timestamps"]
+        )
     else:
-        nb_eval = nb_epochs // eval_freq + 1
-        eval = 0
-
-        acc_by_len = np.empty((nb_eval, len(lengths)))
-        test_acc_by_len = np.empty((nb_eval, len(lengths)))
-        spe_acc = np.empty((nb_eval, 3))
-        test_spe_acc = np.empty((nb_eval, 3))
-        evals = np.full(nb_eval, -1, dtype=int)
+        nb_evals = n_epochs // eval_freq + 1
+        report_eval = EvaluationIO(nb_evals, 2 * eval_dim)
+        evals = eval(model)
+        report_eval(epoch, evals)
 
     # --------------------------------------------------------------------------
     # Training loop
     # --------------------------------------------------------------------------
 
     logger.info(f"Starting Training from epoch {epoch}.")
-    while True:
-
-        # evaluation
-        if not epoch % eval_freq:
-            with torch.no_grad():
-                model.eval()
-                _, seq_err, spe_err = trainset.eval_model(model, special=True)
-                _, test_seq_err, test_spe_err = testset.eval_model(model, special=True)
-                accuracy = 1 - (seq_err * probas_by_len).sum().item()
-                test_accuracy = 1 - (test_seq_err * probas_by_len).sum().item()
-
-            logger.info(f"Epoch {epoch:5d}, Accuracy: {accuracy:.4f}, {test_accuracy:.4f}")
-            s = epoch // eval_freq
-            acc_by_len[s] = 1 - seq_err.cpu()
-            test_acc_by_len[s] = 1 - test_seq_err.cpu()
-            spe_acc[s] = 1 - spe_err.cpu()
-            test_spe_acc[s] = 1 - test_spe_err.cpu()
-            evals[s] = epoch
-            eval += 1
-
-        if epoch >= nb_epochs:
-            break
-
-        epoch = epoch + 1
-
+    model.train()
+    while epoch < n_epochs:
         # training
-        model.train()
         running_loss = 0
-        accuracy = 0
         for sequence in loader:
             sequence = sequence.to(device=device, dtype=torch.long)
 
@@ -269,17 +226,25 @@ def main(
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-            scheduler.step()
 
             with torch.no_grad():
                 running_loss += loss.item()
 
-        losses[epoch - 1] = loss
-
+        losses[epoch] = running_loss
+        epoch = epoch + 1
         logger.info(f"Epoch {epoch:5d}, Loss: {running_loss:.4f}")
 
+        # evaluation
+        if not epoch % eval_freq:
+            evals = eval(model)
+            report_eval(epoch, evals)
+
+            accuracy = (evals[0 : len(lengths)] * probas_by_len).sum().item()
+            test_accuracy = (evals[eval_dim : eval_dim + len(lengths)] * probas_by_len).sum().item()
+            logger.info(f"Epoch {epoch:5d}, Accuracy: {accuracy:.4f}, {test_accuracy:.4f}")
+
         # checkpointing
-        if not epoch % checkpoint_freq or epoch == nb_epochs:
+        if not epoch % checkpoint_freq or epoch == n_epochs:
             if overwrite_checkpoint:
                 path = check_dir / "model.pth"
             else:
@@ -290,19 +255,25 @@ def main(
                     "epoch": epoch,
                     "model_state_dict": model.state_dict(),
                     "optimizer_state_dict": optimizer.state_dict(),
-                    "scheduler_state_dict": scheduler.state_dict(),
                     "losses": losses,
-                    "acc_by_len": acc_by_len,
-                    "test_acc_by_len": test_acc_by_len,
-                    "spe_acc": spe_acc,
-                    "test_spe_acc": test_spe_acc,
-                    "evals": evals,
+                    "evals": report_eval.evals,
+                    "timestamps": report_eval.timestamps,
+                    "meaning": evaluator.meaning,
                 },
                 path,
             )
-
             logger.info(f"Checkpointing model at {path}.")
+    logger.info("Training finished.")
 
 
 if __name__ == "__main__":
-    fire.Fire(main)
+    signal.signal(signal.SIGUSR1, handle_sig)
+    signal.signal(signal.SIGTERM, handle_term)
+
+    logging.basicConfig(
+        # format="{asctime} {levelname} [{filename}:{lineno}] {message}",
+        level=logging.INFO,
+        handlers=[logging.StreamHandler()],
+    )
+
+    fire.Fire(train)

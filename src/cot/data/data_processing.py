@@ -16,11 +16,12 @@ in the root directory of this source tree.
 
 import logging
 
+import fire
 import numpy as np
 import torch
 from torch.utils.data import Dataset, WeightedRandomSampler
 
-from cot.config import RAW_DIR
+from cot.config import RAW_DIR, RNG
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +32,15 @@ logger = logging.getLogger(__name__)
 
 
 class SequenceDataset(Dataset):
+    """
+    Attributes
+    ----------
+    data: tensor of size (nb_data, seq_len)
+        Tensor with data ordered by sequence length.
+    indices: tensor of int of size (len)
+        Indices to delimitate difference sequence lengths.
+    """
+
     data_dir = RAW_DIR
     prefix = None
 
@@ -48,13 +58,13 @@ class SequenceDataset(Dataset):
         raise NotImplementedError
 
     @classmethod
-    def generate_datafiles(cls, max_nb_data_per_len, split_probas_by_len, rng=None):
+    def generate_datafiles(cls, max_data_per_len, split_probas_by_len, rng=None):
         """
         Test/train split.
 
         Parameters
         ----------
-        max_nb_data_per_len : int
+        max_data_per_len : int
             Maximum number of data points to generate for each sequence length.
         split_probas_by_len : list of float
             Proportion of data to put in the training set for each sequence length.
@@ -70,8 +80,7 @@ class SequenceDataset(Dataset):
         cls.data_dir.mkdir(parents=True, exist_ok=True)
         for seq_len, split_proba in enumerate(split_probas_by_len):
             seq_len += 1
-            data = cls.generate_fixed_len_data(seq_len=seq_len, nb_data=max_nb_data_per_len, rng=rng)
-            np.save(cls.data_dir / f"data_{seq_len}.npy", data)
+            data = cls.generate_fixed_len_data(seq_len=seq_len, nb_data=max_data_per_len, rng=rng)
             rng.shuffle(data)
             nb_train = int(split_proba * len(data))
             np.save(cls.data_dir / f"train_{seq_len}.npy", data[:nb_train])
@@ -87,7 +96,7 @@ class SequenceDataset(Dataset):
         lengths : list of int
             List of sequence lengths.
         data_type : str, optional
-            Type of data to load. Whether 'train', 'test' or 'all'.
+            Type of data to load. Whether 'train' or 'test'.
 
         Returns
         -------
@@ -105,17 +114,13 @@ class SequenceDataset(Dataset):
         Should be called after `generate_datafiles`.
         """
         assert isinstance(lengths, list), "`lenghts` must be an a list of int."
-        assert data_type in ["train", "test", "all"], "`data_type` must be 'train', 'test' or 'all'."
-
-        prefix = data_type
-        if data_type == "all":
-            prefix = "data"
+        assert data_type in ["train", "test"], "`data_type` must be 'train' or 'test'."
 
         # memory preallocation
         # ... compute the data size by lenghts
         nb_data_by_lens = np.empty(len(lengths))
         for i, seq_len in enumerate(lengths):
-            filename = self.data_dir / f"{prefix}_{seq_len}.npy"
+            filename = self.data_dir / f"{data_type}_{seq_len}.npy"
             with open(filename, "rb") as f:
                 version = np.lib.format.read_magic(f)
                 header = np.lib.format._read_array_header(f, version)
@@ -130,7 +135,7 @@ class SequenceDataset(Dataset):
         # load the data in the allocated memory
         for i, seq_len in enumerate(lengths):
             data[indices[i] : indices[i + 1], 1 : self.get_len(seq_len) + 1] = np.load(
-                self.data_dir / f"{prefix}_{seq_len}.npy"
+                self.data_dir / f"{data_type}_{seq_len}.npy"
             )
 
         return data, indices
@@ -146,7 +151,7 @@ class SequenceDataset(Dataset):
         lengths : list of int
             List of sequence lengths.
         data_type : str
-            Type of data to load. Whether 'train', 'test' or 'all'.
+            Type of data to load. Whether 'train' or 'test'.
 
         Notes
         -----
@@ -156,7 +161,7 @@ class SequenceDataset(Dataset):
         self.data = torch.from_numpy(train_data)
         self.indices = torch.from_numpy(indices)
 
-    def set_data_probas(self, probas_by_len):
+    def get_sampler_by_len(self, probas_by_len):
         """
         Set the probability of each data point.
 
@@ -174,159 +179,19 @@ class SequenceDataset(Dataset):
 
         assert abs(sum(probas_by_len) - 1) < 1e-6, "The sum of the probabilities must be equal to 1."
 
-        self.probas = torch.empty(self.indices[-1])
+        probas = torch.empty(self.indices[-1])
         for i in range(len(probas_by_len)):
             start, end = self.indices[i], self.indices[i + 1]
             if start != end:
-                self.probas[start:end] = probas_by_len[i] / (end - start)
+                probas[start:end] = probas_by_len[i] / (end - start)
 
-    def set_as_trainset(self, lengths, probas_by_len):
-        """
-        Data generation processing.
-
-        Parameters
-        ----------
-        lengths : list of int
-            List of sequence lengths.
-        probas_by_len : list of numpy.ndarray
-            Probability vector to sample a sequence of a given length.
-        rng : numpy.random.Generator, optional
-            Random number generator. If None, use the default generator.
-        """
-
-        logger.info(f"Loading training data for {self.prefix} problem.")
-        self.set_data(lengths, data_type="train")
-
-        logger.info("Setting sampler.")
-        self.set_data_probas(probas_by_len)
-        self.sampler = WeightedRandomSampler(self.probas, len(self.data))
-
-    def set_as_testset(self, lengths):
-        """
-        Data loading processing.
-
-        Parameters
-        ----------
-        lengths : list of int
-            List of sequence lengths.
-        """
-
-        logger.info(f"Loading test data for {self.prefix} problem.")
-        self.set_data(lengths, data_type="test")
+        return WeightedRandomSampler(probas, len(self.data))
 
     def __len__(self):
         return len(self.data)
 
     def __getitem__(self, idx):
         return self.data[idx]
-
-    def eval_model(self, model, batch_size=None, special=False):
-        """
-        Eval model on dataset
-
-        Parameters
-        ----------
-        model: torch.nn.Module
-            model to be evaluated.
-        batch_size: int, optional
-            batch size to use when data does not fit in memory.
-        special: bool, optional (default is False)
-            whether to compute special token syntaxic error.
-
-        Returns
-        -------
-        err_by_len: torch.Tensor
-            token errors average by lengths.
-        seq_err_by_len: torch.Tensor
-            sequence errors average by lengths.
-        spe_err: torch.Tensor of size (-1, 3)
-            sequence of special token erros.
-        """
-
-        if batch_size is None:
-            batch_size = len(self.data)
-
-        device = list(model.parameters())[0].device
-
-        nb_data = len(self.data)
-        err = torch.empty(nb_data, device=device, dtype=float)
-        seq_err = torch.empty(nb_data, device=device, dtype=bool)
-        if special:
-            spe_err = torch.zeros(3, device=device, dtype=float)
-
-        begin = 0
-        for end in range(batch_size, nb_data + batch_size, batch_size):
-            data = self.data[begin:end].to(device=device, dtype=torch.long)
-            pred = model(data[:, :-1]).argmax(dim=-1)
-            ground_truth = data[:, 1:]
-
-            ind = ground_truth == 1
-            cot_mask = ind.cumsum(axis=1)
-            cot_mask[ind] = 0
-            cot_mask = cot_mask.to(dtype=bool)
-            pred[~cot_mask] = ground_truth[~cot_mask]
-
-            errors = pred != ground_truth
-            seq_err[begin:end] = errors.any(dim=1)
-            err[begin:end] = errors.float().mean(dim=1)
-            if special:
-                tmp = self.eval_spe_tok_err(pred)
-                spe_err[:] += torch.stack(tmp) * (end - begin)
-
-            begin = end
-
-        ind = self.indices.to(device)
-        err_by_len = err.cumsum(dim=0)[ind - 1]
-        err_by_len[ind == 0] = 0
-        err_by_len = err_by_len.diff()
-
-        seq_err_by_len = seq_err.cumsum(dim=0)[ind - 1]
-        seq_err_by_len[ind == 0] = 0
-        seq_err_by_len = seq_err_by_len.diff().float()
-
-        nb_by_len = ind.diff()
-        nb_by_len[nb_by_len == 0] = 1
-        err_by_len /= nb_by_len
-        seq_err_by_len /= nb_by_len
-        if special:
-            spe_err /= end
-
-            return err_by_len, seq_err_by_len, spe_err
-        return err_by_len, seq_err_by_len
-
-    @staticmethod
-    def eval_spe_tok_err(pred):
-        """
-        Compute special token syntaxic error.
-
-        Parameters
-        ----------
-        pred: torch.Tensor
-            predictions of CoT with correct prefix.
-
-        Returns
-        -------
-        bos_err: float
-            number of `begin of sentence` syntaxic error.
-        eoi_err: float
-            number of `end of input` syntaxic error.
-        eos_err: float
-            number of `end of sentence` syntaxic error.
-        """
-
-        eos_ind = (pred == 2).int()
-        first_eos = eos_ind.argmax(dim=-1)
-        nb_eos = eos_ind.sum(dim=-1)
-
-        eos_err = (first_eos + nb_eos) != 18
-        bos_err = (pred == 0).int().sum(dim=-1) != 0
-        eoi_err = (pred == 1).int().sum(dim=-1) != 1
-
-        eos_err = eos_err.float().mean()
-        bos_err = bos_err.float().mean()
-        eoi_err = eoi_err.float().mean()
-
-        return bos_err, eoi_err, eos_err
 
 
 # -----------------------------------------------------------------------------
@@ -527,3 +392,57 @@ class Parity(SequenceDataset):
     def get_len(cls, seq_len):
         """Full sequence length."""
         return 2 * seq_len + 1
+
+
+# -----------------------------------------------------------------------------
+# Main script
+# -----------------------------------------------------------------------------
+
+
+def data_processing(
+    problem="binary-copy",
+    n_len=8,
+    split_probas=0.5,
+    max_nb_data_per_len=2048,
+):
+    """
+    Training a Transformer model on a specified problem.
+
+    Paramters
+    ---------
+    problem: str
+        Problem to be solved. Currently supported are "binary-copy" and "parity".
+    n_len: int
+        Maximum number of lenghts for sequences.
+    split_probas: float or list of float
+        Percentage of train/test split, eventually specified by length.
+    max_nb_data_per_len: int
+        Maximum number of data to generate for a given length.
+    """
+    match problem:
+        case "binary-copy":
+            Problem = BinaryCopy
+        case "parity":
+            Problem = Parity
+        case _:
+            raise ValueError(f"Problem {problem} not recognized.")
+
+    lengths = list(np.arange(n_len) + 1)
+
+    if isinstance(split_probas, float):
+        split_probas_by_len = split_probas * np.ones(len(lengths))
+    else:
+        split_probas_by_len = np.array(split_probas)
+        assert len(split_probas_by_len) == n_len, "`split_probas` should be of size `n_len`"
+
+    Problem.generate_datafiles(max_nb_data_per_len, split_probas_by_len, RNG)
+
+
+if __name__ == "__main__":
+    logging.basicConfig(
+        # format="{asctime} {levelname} [{filename}:{lineno}] {message}",
+        level=logging.INFO,
+        handlers=[logging.StreamHandler()],
+    )
+
+    fire.Fire(data_processing)
