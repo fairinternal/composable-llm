@@ -439,9 +439,11 @@ def data_processing(
 
 
 if __name__ == "__main__":
+    from cot.config import logging_format, logging_level
+
     logging.basicConfig(
-        # format="{asctime} {levelname} [{filename}:{lineno}] {message}",
-        level=logging.INFO,
+        format=logging_format,
+        level=logging_level,
         handlers=[logging.StreamHandler()],
     )
 
