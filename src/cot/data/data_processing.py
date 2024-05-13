@@ -21,7 +21,7 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset, WeightedRandomSampler
 
-from cot.config import RAW_DIR, RNG
+from cot.config import DATA_DIR, RNG
 
 logger = logging.getLogger(__name__)
 
@@ -35,20 +35,28 @@ class SequenceDataset(Dataset):
     """
     Attributes
     ----------
-    data: tensor of size (nb_data, seq_len)
+    data: tensor of size (n_data, seq_len)
         Tensor with data ordered by sequence length.
     indices: tensor of int of size (len)
         Indices to delimitate difference sequence lengths.
+
+    Parameters
+    ----------
+    save_dir: str
+        Path of the directory where to save the data.
     """
 
-    data_dir = RAW_DIR
     prefix = None
 
-    def __init__(self):
-        pass
+    def __init__(self, save_dir=None):
+        if save_dir is None:
+            save_dir = DATA_DIR
+            if self.prefix is not None:
+                save_dir = DATA_DIR / self.prefix
+        self.save_dir = save_dir
 
     @classmethod
-    def generate_fixed_len_data(cls, seq_len, nb_data, rng=None):
+    def generate_fixed_len_data(cls, seq_len, n_data, rng=None):
         """Generate sequence with fixed sequence length."""
         raise NotImplementedError
 
@@ -57,14 +65,24 @@ class SequenceDataset(Dataset):
         """Full sequence length."""
         raise NotImplementedError
 
-    @classmethod
-    def generate_datafiles(cls, max_data_per_len, split_probas_by_len, rng=None):
+    def change_save_dir(self, save_dir):
+        """
+        Change saving directory.
+
+        Parameters
+        ----------
+        save_dir: str
+            Path of the directory where to save the data.
+        """
+        self.save_dir = save_dir
+
+    def generate_datafiles(self, n_data_per_len, split_probas_by_len, rng=None):
         """
         Test/train split.
 
         Parameters
         ----------
-        max_data_per_len : int
+        n_data_per_len : int
             Maximum number of data points to generate for each sequence length.
         split_probas_by_len : list of float
             Proportion of data to put in the training set for each sequence length.
@@ -72,20 +90,20 @@ class SequenceDataset(Dataset):
             Random number generator. If None, use the default generator.
         """
 
-        logger.info(f"Generating data. Saving in {cls.data_dir}")
+        logger.info(f"Generating data. Saving in {self.save_dir}")
 
         if rng is None:
             rng = np.random.default_rng()
 
-        cls.data_dir.mkdir(parents=True, exist_ok=True)
+        self.save_dir.mkdir(parents=True, exist_ok=True)
         for seq_len, split_proba in enumerate(split_probas_by_len):
             seq_len += 1
-            data = cls.generate_fixed_len_data(seq_len=seq_len, nb_data=max_data_per_len, rng=rng)
+            data = self.generate_fixed_len_data(seq_len=seq_len, n_data=n_data_per_len, rng=rng)
             rng.shuffle(data)
-            nb_train = int(split_proba * len(data))
-            np.save(cls.data_dir / f"train_{seq_len}.npy", data[:nb_train])
-            np.save(cls.data_dir / f"test_{seq_len}.npy", data[nb_train:])
-            logger.debug(f"Sequences of length {seq_len} done. Saved in {cls.data_dir} ({nb_train}/{len(data)} split).")
+            n_train = int(split_proba * len(data))
+            np.save(self.save_dir / f"train_{seq_len}.npy", data[:n_train])
+            np.save(self.save_dir / f"test_{seq_len}.npy", data[n_train:])
+            logger.debug(f"Sequences of length {seq_len} done. Saved in {self.save_dir} ({n_train}/{len(data)} split).")
 
     def load_data(self, lengths, data_type=None):
         """
@@ -118,16 +136,16 @@ class SequenceDataset(Dataset):
 
         # memory preallocation
         # ... compute the data size by lenghts
-        nb_data_by_lens = np.empty(len(lengths))
+        n_data_by_lens = np.empty(len(lengths))
         for i, seq_len in enumerate(lengths):
-            filename = self.data_dir / f"{data_type}_{seq_len}.npy"
+            filename = self.save_dir / f"{data_type}_{seq_len}.npy"
             with open(filename, "rb") as f:
                 version = np.lib.format.read_magic(f)
                 header = np.lib.format._read_array_header(f, version)
-            nb_data_by_lens[i] = header[0][0]
+            n_data_by_lens[i] = header[0][0]
 
         # ... deduce memory allocation
-        indices = np.cumsum(nb_data_by_lens, dtype=int)
+        indices = np.cumsum(n_data_by_lens, dtype=int)
         indices = np.insert(indices, 0, 0)
         data = np.full((indices[-1], self.get_len(max(lengths)) + 2), 2, dtype=np.int32)
         data[:, 0] = 0
@@ -135,7 +153,7 @@ class SequenceDataset(Dataset):
         # load the data in the allocated memory
         for i, seq_len in enumerate(lengths):
             data[indices[i] : indices[i + 1], 1 : self.get_len(seq_len) + 1] = np.load(
-                self.data_dir / f"{data_type}_{seq_len}.npy"
+                self.save_dir / f"{data_type}_{seq_len}.npy"
             )
 
         return data, indices
@@ -201,13 +219,12 @@ class SequenceDataset(Dataset):
 
 class BinaryCopy(SequenceDataset):
     prefix = "binary_copy"
-    data_dir = SequenceDataset.data_dir / prefix
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, save_dir=None):
+        super().__init__(save_dir=save_dir)
 
     @classmethod
-    def generate_fixed_len_data(cls, seq_len, nb_data, rng=None):
+    def generate_fixed_len_data(cls, seq_len, n_data, rng=None):
         """
         Generate parity data with fixed sequence length.
 
@@ -215,12 +232,12 @@ class BinaryCopy(SequenceDataset):
         ----------
         seq_len : int
             Length of the sequence.
-        nb_data : int
+        n_data : int
             Number of data points to generate.
             Will be reduced to 2**seq_len if greater.
         rng : numpy.random.Generator, optional
             Random number generator. If None, use the default generator.
-            Used if nb_data is too small compared to all the potential sequences.
+            Used if n_data is too small compared to all the potential sequences.
 
         Returns
         -------
@@ -236,19 +253,19 @@ class BinaryCopy(SequenceDataset):
             rng = np.random.default_rng()
 
         # allocate memory
-        if 2**seq_len < nb_data:
-            nb_data = 2**seq_len
+        if 2**seq_len < n_data:
+            n_data = 2**seq_len
         length = cls.get_len(seq_len)
-        data = np.empty((nb_data, length), dtype=np.int32)
+        data = np.empty((n_data, length), dtype=np.int32)
 
         # input data
         # ... exhaustive case
-        if 2**seq_len == nb_data:
+        if 2**seq_len == n_data:
             powers_of_two = 2 ** np.arange(seq_len)[::-1]
-            data[:, :seq_len] = (np.arange(nb_data).reshape(-1, 1) & powers_of_two != 0).astype(np.int32)
+            data[:, :seq_len] = (np.arange(n_data).reshape(-1, 1) & powers_of_two != 0).astype(np.int32)
         # ... non-exhaustive case
         else:
-            data[:, :seq_len] = (rng.random((nb_data, seq_len)) > 0.5).astype(np.int32)
+            data[:, :seq_len] = (rng.random((n_data, seq_len)) > 0.5).astype(np.int32)
         data += 3
 
         # end of input
@@ -266,16 +283,14 @@ class BinaryCopy(SequenceDataset):
 
 class Copy(SequenceDataset):
     prefix = "copy"
-    data_dir = SequenceDataset.data_dir / prefix
     vocab_size = 10
 
-    def __init__(self, vocab_size=None):
-        super().__init__()
+    def __init__(self, save_dir=None, vocab_size=None):
+        super().__init__(save_dir=save_dir)
         if vocab_size is not None:
-            Copy.vocab_size = vocab_size
+            self.vocab_size = vocab_size
 
-    @classmethod
-    def generate_fixed_len_data(cls, seq_len, nb_data, rng=None):
+    def generate_fixed_len_data(self, seq_len, n_data, rng=None):
         """
         Generate parity data with fixed sequence length.
 
@@ -283,12 +298,12 @@ class Copy(SequenceDataset):
         ----------
         seq_len : int
             Length of the sequence.
-        nb_data : int
+        n_data : int
             Number of data points to generate.
             Will be reduced to 2**seq_len if greater.
         rng : numpy.random.Generator, optional
             Random number generator. If None, use the default generator.
-            Used if nb_data is too small compared to all the potential sequences.
+            Used if n_data is too small compared to all the potential sequences.
 
         Returns
         -------
@@ -299,15 +314,15 @@ class Copy(SequenceDataset):
                 2: end of sentence,
                 x between 3 and 2 + `vocab_size`: some tokens.
         """
-        logger.info(f"Generating data with vocabulary of size {cls.vocab_size}.")
+        logger.info(f"Generating data with vocabulary of size {self.vocab_size}.")
 
         if rng is None:
             rng = np.random.default_rng()
 
         # input
-        length = cls.get_len(seq_len)
-        data = np.empty((nb_data, length), dtype=np.int32)
-        data[:, :seq_len] = (rng.random((nb_data, seq_len)) * cls.vocab_size).astype(np.int32)
+        length = self.get_len(seq_len)
+        data = np.empty((n_data, length), dtype=np.int32)
+        data[:, :seq_len] = (rng.random((n_data, seq_len)) * self.vocab_size).astype(np.int32)
         data += 3
 
         # end of input
@@ -330,13 +345,12 @@ class Copy(SequenceDataset):
 
 class Parity(SequenceDataset):
     prefix = "parity"
-    data_dir = SequenceDataset.data_dir / prefix
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, save_dir=None):
+        super().__init__(save_dir=save_dir)
 
     @classmethod
-    def generate_fixed_len_data(cls, seq_len, nb_data, rng=None):
+    def generate_fixed_len_data(cls, seq_len, n_data, rng=None):
         """
         Generate parity data with fixed sequence length.
 
@@ -344,12 +358,12 @@ class Parity(SequenceDataset):
         ----------
         seq_len : int
             Length of the sequence.
-        nb_data : int
+        n_data : int
             Number of data points to generate.
             Will be reduced to 2**seq_len if greater.
         rng : numpy.random.Generator, optional
             Random number generator. If None, use the default generator.
-            Used if nb_data is too small compared to all the potential sequences.
+            Used if n_data is too small compared to all the potential sequences.
 
         Returns
         -------
@@ -365,19 +379,19 @@ class Parity(SequenceDataset):
             rng = np.random.default_rng()
 
         # allocate memory
-        if 2**seq_len < nb_data:
-            nb_data = 2**seq_len
+        if 2**seq_len < n_data:
+            n_data = 2**seq_len
         length = cls.get_len(seq_len)
-        data = np.empty((nb_data, length), dtype=np.int32)
+        data = np.empty((n_data, length), dtype=np.int32)
 
         # input data
         # ... exhaustive case
-        if 2**seq_len == nb_data:
+        if 2**seq_len == n_data:
             powers_of_two = 2 ** np.arange(seq_len)[::-1]
-            data[:, :seq_len] = (np.arange(nb_data).reshape(-1, 1) & powers_of_two != 0).astype(np.int32)
+            data[:, :seq_len] = (np.arange(n_data).reshape(-1, 1) & powers_of_two != 0).astype(np.int32)
         # ... non-exhaustive case
         else:
-            data[:, :seq_len] = (rng.random((nb_data, seq_len)) > 0.5).astype(np.int32)
+            data[:, :seq_len] = (rng.random((n_data, seq_len)) > 0.5).astype(np.int32)
 
         # end of input
         data[:, seq_len] = -2
@@ -403,7 +417,8 @@ def data_processing(
     problem="binary-copy",
     n_len=8,
     split_probas=0.5,
-    max_nb_data_per_len=2048,
+    n_data_per_len=2048,
+    save_dir=None,
 ):
     """
     Training a Transformer model on a specified problem.
@@ -416,14 +431,16 @@ def data_processing(
         Maximum number of lenghts for sequences.
     split_probas: float or list of float
         Percentage of train/test split, eventually specified by length.
-    max_nb_data_per_len: int
+    n_data_per_len: int
         Maximum number of data to generate for a given length.
+    save_dir: str
+        Path of the directory where to save the data.
     """
     match problem:
         case "binary-copy":
-            Problem = BinaryCopy
+            problem = BinaryCopy(save_dir=save_dir)
         case "parity":
-            Problem = Parity
+            problem = Parity(save_dir=save_dir)
         case _:
             raise ValueError(f"Problem {problem} not recognized.")
 
@@ -435,7 +452,7 @@ def data_processing(
         split_probas_by_len = np.array(split_probas)
         assert len(split_probas_by_len) == n_len, "`split_probas` should be of size `n_len`"
 
-    Problem.generate_datafiles(max_nb_data_per_len, split_probas_by_len, RNG)
+    problem.generate_datafiles(n_data_per_len, split_probas_by_len, rng=RNG)
 
 
 if __name__ == "__main__":
