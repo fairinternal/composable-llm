@@ -3,22 +3,13 @@
 ## TODOS
 
 TODO NOW:
-- [ ] Write scripts to launch runs on the cluster
-    - Start with a grid on the batch_size: we only need to have id for experiments
-    - Continue with a grid on the number of data: we need to have id for the data mix
-    - Finish with code to do some curriculum learning, i.e., change the data mix as training goes by.
-
-Implementation going on - Vivien debug:
-    Use fire instead of argparse for the grid_run.
-
-- [ ] Explore first results
-    - Look at the attention maps: find some example where the attention maps are peaky.
-
-- [ ] Think of the right ablation study to do.
-
-TODO for Alice or Wes:
-- [ ] Implement a baseline without CoT.
-- [ ] Implement a baseline with only one layer.
+- [ ] Write some code to read the results from some grid run.
+    - Maybe change the config.json name from one run to the other
+- [ ] Explore some basic baseline:
+    - Without cot
+    - With only one layer
+- [ ] Explore data mix and skill transfert
+- [ ] Explore the effect of sequence length and embedding dimension on the pattern we learn, how fast we learn, and the final accuracy.
 
 Longer term implementation TODO:
 - Put the token meaning somewhere (like in the config file), or in a tokenization folder, so to easily modify it without having to come back to every lines of code that uses specific values.
@@ -31,7 +22,8 @@ Longer term implementation TODO:
 - Be more coherent between `n`, `nb` or `num` (always use `n`), and this kind of things in general (e.g., `batch_size` vs `bsz`).
 - Be mindful of useless copy and CPU/GPU transfert of the data (e.g., in the evaluation script).
 - Remove the data_sampler part and change it with a more generic data mix scheme. Eventually reweight samples in the training loss.
-- Use uuid to get unique id, and use json file to keep track of which experiments are doing what.
+- Look into relaunching jobs when they arrive at termination + saving codebase that has launch a run
+- have a better separation between the training loop (a function that takes as inputs some optim parameter, dataset, model and eval class), and how we instanciate it (a change in its arguments, the data, the eval class and so on).
 
 ## Disorganized thoughts 
 The following is not really well organized, but it gives food for thoughts. We should focus on some meaningful experiments that are insightful beyond our toy setup.
