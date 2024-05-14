@@ -1,9 +1,9 @@
 #!/usr/bin/bash
 
 # Logging configuration
-#SBATCH --job-name=cot
-#SBATCH --output=/checkpoint/vivc/cot/%a-%t.out
-#SBATCH --error=/checkpoint/vivc/cot/%a-%t.err
+#SBATCH --job-name=cot-copy
+#SBATCH --output=/checkpoint/vivc/cot-copy/%a-%t.out
+#SBATCH --error=/checkpoint/vivc/cot-copy/%a-%t.err
 #SBATCH --mail-type=END
 #SBATCH --mail-user=vivc@meta.com
 
@@ -18,4 +18,4 @@
 #SBATCH --array=1-30
 
 
-python /private/home/vivc/code/llm/cot/scripts/grid_run.py --num-tasks $SLURM_ARRAY_TASK_COUNT --task-id $SLURM_ARRAY_TASK_ID
+python /private/home/vivc/code/llm/cot/scripts/grid_run.py --num-tasks $SLURM_ARRAY_TASK_COUNT --task-id $SLURM_ARRAY_TASK_ID --config_filename binary

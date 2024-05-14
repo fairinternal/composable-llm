@@ -2,13 +2,17 @@
 
 ## TODOS
 
+- Describe the experimental
+- Get plots with the attention maps
+
 TODO NOW:
-- [ ] Write some code to read the results from some grid run.
-    - Maybe change the config.json name from one run to the other
 - [ ] Explore some basic baseline:
     - Without cot -> Create a new dataclass for it.
     - With only one layer
 - [ ] Explore data mix and skill transfert
+    - Get the model that has learn with binary, freeze all the layer but the last one and retrain it with parity.
+    - See what happen if we relearn everything (do we loose in efficiency). If the dimension of the sequence are too small, do we loose the iteration head structure?
+    - Add an option to learn with both dataset at the same time (with an extra token).
 - [ ] Explore the effect of sequence length and embedding dimension on the pattern we learn, how fast we learn, and the final accuracy.
 
 Longer term implementation TODO:
@@ -43,6 +47,7 @@ Simple questions:
 - investigate the small weird stuff on the attention map: it seems that there should be a different circuit hidden for a special position.
 - if we do a mix parity and binary, maybe we will force more to have the circuit we want
 - if we reduce the position embedding dimension, maybe we will have a cleaner structure appearing in the position embedding, that allows to find a rule for substraction, rather than memorize all substraction.
+- reuse Wes code (or submitit) to save the codebase before running a script, to avoid that changes to the codebase modify runs that are pending but have not started to run. Look also at wandb and hydra.
 
 ## Objective
 

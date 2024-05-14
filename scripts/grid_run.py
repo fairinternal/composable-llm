@@ -114,17 +114,30 @@ def run_experiment(
 def run_grid(
     num_tasks=1,
     task_id=1,
+    config_filename=None,
 ):
     """
     Run a grid of experiments
+
+    Parameters
+    ----------
+    num_tasks: int
+        Number of threads to split the grid run into.
+    task_id: int
+        Id of the current thread.
+    config_filename: str
+        Where to save the configuration that generate the runs.
     """
 
     grid = {
+        "learning_rate": [3e-4, 1e-3, 3e-3],
         "batch_size": [64, 256, 1024, 2048, 4096],
-        "learning_rate": [3e-4, 1e-3, 3e-3, 1e-2, 1e-1, 1e0],
     }
 
     CHECK_DIR.mkdir(parents=True, exist_ok=True)
+
+    if config_filename is None:
+        config_filename = "config"
 
     for i, values in enumerate(product(*grid.values())):
         # Handling the grid concurrently with many tasks
@@ -140,7 +153,7 @@ def run_grid(
             setattr(config, k, v)
 
         config_dict = asdict(config)
-        with open(CHECK_DIR / "config.json", "a") as f:
+        with open(CHECK_DIR / f"{config_filename}.jsonl", "a") as f:
             json.dump(config_dict, f, cls=JsonEncoder, indent=4)
             f.write("\n")
 

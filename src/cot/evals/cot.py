@@ -15,7 +15,7 @@ import torch
 class AccuracyEval:
 
     def __init__(self, lengths):
-        self.meaning = ["acc_len_{leng}" for leng in lengths]
+        self.meaning = [f"acc_len_{leng}" for leng in lengths]
         self.eval_dim = len(self.meaning)
 
     def __call__(self, model, dataset, pred=None, logits=None):
