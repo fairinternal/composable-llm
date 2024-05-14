@@ -18,7 +18,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 from torch.utils.data import DataLoader
 
-from cot.config import CHECKPOINT_DIR
+from cot.config import CHECK_DIR
 from cot.data import BinaryCopy, Parity
 from cot.evals import EvaluationIO
 from cot.evals.cot import FullEval
@@ -151,7 +151,7 @@ def train(
     losses = np.empty(n_epochs)
 
     if check_dir is None:
-        check_dir = CHECKPOINT_DIR / Problem.prefix
+        check_dir = CHECK_DIR / Problem.prefix
     check_dir.mkdir(parents=True, exist_ok=True)
 
     model = Transformer(config)
@@ -273,15 +273,9 @@ def train(
 
 
 if __name__ == "__main__":
-    import signal
-
     import fire
 
     from cot.config import logging_datefmt, logging_format, logging_level
-    from cot.utils import handle_sig, handle_term
-
-    signal.signal(signal.SIGUSR1, handle_sig)
-    signal.signal(signal.SIGTERM, handle_term)
 
     logging.basicConfig(
         format=logging_format,

@@ -1,5 +1,27 @@
+"""
+Utils functions
+"""
+
 import os
 import sys
+from json import JSONEncoder
+from pathlib import PosixPath
+
+# -----------------------------------------------------------------------------
+# Json Serializer
+# -----------------------------------------------------------------------------
+
+
+class JsonEncoder(JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, PosixPath):
+            return str(obj)
+        return super().default(obj)
+
+
+# -----------------------------------------------------------------------------
+# Slurm signal handling
+# -----------------------------------------------------------------------------
 
 
 def handle_sig(signum, frame):

@@ -4,15 +4,18 @@ Example of grid run (past code on Vivien side).
 To be modified to fit the current framework.
 """
 
+import json
 import logging
-import time
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
+from itertools import product
+from uuid import uuid4
 
 import torch
 
-from cot.config import CHECKPOINT_DIR, DATA_DIR
+from cot.config import CHECK_DIR, DATA_DIR
 from cot.data import data_processing
 from cot.train import train
+from cot.utils import JsonEncoder
 
 logger = logging.getLogger(__name__)
 
@@ -58,19 +61,19 @@ class MainConfig:
     eval_freq: int = 10
 
     def __post_init__(self):
-        self.unique_id = str(int(time.time()))
+        self.unique_id = str(uuid4())
         if self.data_dir == "special":
             self.data_dir = DATA_DIR / self.unique_id
 
-        if self.check_dir is None:
-            self.check_dir = CHECKPOINT_DIR / self.unique_id
+        if self.check_dir == "special":
+            self.check_dir = CHECK_DIR / self.unique_id
 
 
 def run_experiment(
     config,
 ):
     """
-    Main script
+    Run one experiments associated with one config file
 
     Parameters
     ----------
@@ -108,57 +111,48 @@ def run_experiment(
     )
 
 
-def main(
-    data_dir=None,
-    problem="binary-copy",
-    n_len=16,
-    split_probas=0.5,
-    n_data_per_len=2048,
-    zipf_offset=0,
-    zipf_coef=0,
-    emb_dim=128,
-    emb_dropout=0.1,
-    n_head=1,
-    n_layer=2,
-    n_epochs=1000,
-    batch_size=None,
-    learning_rate=1e-3,
-    checkpoint_freq=100,
-    overwrite_checkpoint=True,
-    load_checkpoint=False,
-    check_dir=None,
-    eval_freq=10,
+def run_grid(
+    num_tasks=1,
+    task_id=1,
 ):
-    config = MainConfig(
-        data_dir=data_dir,
-        problem=problem,
-        n_len=n_len,
-        split_probas=split_probas,
-        n_data_per_len=n_data_per_len,
-        zipf_offset=zipf_offset,
-        zipf_coef=zipf_coef,
-        emb_dim=emb_dim,
-        emb_dropout=emb_dropout,
-        n_head=n_head,
-        n_layer=n_layer,
-        n_epochs=n_epochs,
-        batch_size=batch_size,
-        learning_rate=learning_rate,
-        checkpoint_freq=checkpoint_freq,
-        overwrite_checkpoint=overwrite_checkpoint,
-        load_checkpoint=load_checkpoint,
-        check_dir=check_dir,
-        eval_freq=eval_freq,
-    )
+    """
+    Run a grid of experiments
+    """
 
-    run_experiment(config)
+    grid = {
+        "batch_size": [64, 256, 1024, 2048, 4096],
+        "learning_rate": [3e-4, 1e-3, 3e-3, 1e-2, 1e-1, 1e0],
+    }
+
+    CHECK_DIR.mkdir(parents=True, exist_ok=True)
+
+    for i, values in enumerate(product(*grid.values())):
+        # Handling the grid concurrently with many tasks
+        if i % num_tasks != (task_id - 1):
+            continue
+
+        config = MainConfig(
+            check_dir="special",
+            data_dir="special",
+        )
+
+        for k, v in zip(grid.keys(), values):
+            setattr(config, k, v)
+
+        config_dict = asdict(config)
+        with open(CHECK_DIR / "config.json", "a") as f:
+            json.dump(config_dict, f, cls=JsonEncoder, indent=4)
+            f.write("\n")
+
+        try:
+            run_experiment(config)
+        except Exception:
+            logger.warning(f"Error for configuration: {config}.")
+            continue
 
 
 if __name__ == "__main__":
-    debug = True
-
-    import argparse
-    from itertools import product
+    import fire
 
     from cot.config import logging_datefmt, logging_format, logging_level
 
@@ -170,36 +164,4 @@ if __name__ == "__main__":
         handlers=[logging.StreamHandler()],
     )
 
-    if debug:
-        import sys
-
-        import fire
-
-        fire.Fire(main)
-        sys.exit()
-
-    parser = argparse.ArgumentParser(description="CoT grid experiments")
-    parser.add_argument("--num-tasks", default=100, type=int, help="Number of tasks to split the grid into.")
-    parser.add_argument("--task-id", default=1, type=int, help="Task id, from 1 to `num_task`.")
-    args = parser.parse_args()
-
-    config = MainConfig()
-
-    grid = {
-        "batch_size": [64, 256, 1024, 2048, 4096],
-        "learning_rate": [3e-4, 1e-3, 3e-3, 1e-2, 1e-1, 1e0],
-    }
-
-    for i, values in enumerate(product(*grid.values())):
-        # Handling the grid concurrently with many tasks
-        if i % args.num_tasks != (args.task_id - 1):
-            continue
-
-        for k, v in zip(grid.keys(), values):
-            setattr(config, k, v)
-
-        try:
-            run_experiment(config)
-        except Exception:
-            logger.warning(f"Error for configuration: {config}.")
-            continue
+    fire.Fire(run_grid)
