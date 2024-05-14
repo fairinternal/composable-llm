@@ -6,7 +6,7 @@ TODO NOW:
 - [ ] Write some code to read the results from some grid run.
     - Maybe change the config.json name from one run to the other
 - [ ] Explore some basic baseline:
-    - Without cot
+    - Without cot -> Create a new dataclass for it.
     - With only one layer
 - [ ] Explore data mix and skill transfert
 - [ ] Explore the effect of sequence length and embedding dimension on the pattern we learn, how fast we learn, and the final accuracy.
@@ -24,6 +24,7 @@ Longer term implementation TODO:
 - Remove the data_sampler part and change it with a more generic data mix scheme. Eventually reweight samples in the training loss.
 - Look into relaunching jobs when they arrive at termination + saving codebase that has launch a run
 - have a better separation between the training loop (a function that takes as inputs some optim parameter, dataset, model and eval class), and how we instanciate it (a change in its arguments, the data, the eval class and so on).
+- deal with error when load_checkpoint=True, but there is no checkpoint.
 
 ## Disorganized thoughts 
 The following is not really well organized, but it gives food for thoughts. We should focus on some meaningful experiments that are insightful beyond our toy setup.

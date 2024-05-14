@@ -8,6 +8,7 @@ data/
 
 # Checkpointing and run config
 config.json
+config.jsonl
 *.pth
 
 # Configuration files
