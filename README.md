@@ -2,28 +2,29 @@
 
 ## TODOS
 
-- Describe the experimental
+Plan of Attack 
+- Describe the experimental setups
 - Get plots with the attention maps
+- Wes will do the position embeddings
+    - eventually it would be nice to see the apparence of patterns similar to the modular addition paper.
+- I will do the successor function
+    - Find a network that learn the binary copy with the perfect accuracy. Show that we can learn the second layer MLP only in order to go from binary to parity.
 
-TODO NOW:
-- [ ] Explore some basic baseline:
-    - Without cot -> Create a new dataclass for it.
-    - With only one layer
-- [ ] Explore data mix and skill transfert
-    - Get the model that has learn with binary, freeze all the layer but the last one and retrain it with parity.
-    - See what happen if we relearn everything (do we loose in efficiency). If the dimension of the sequence are too small, do we loose the iteration head structure?
-    - Add an option to learn with both dataset at the same time (with an extra token).
-- [ ] Explore the effect of sequence length and embedding dimension on the pattern we learn, how fast we learn, and the final accuracy.
+- I will reimplement the tokenizer to add a special token that select the problem. Then I will look at differnet option to learn the parity problem. I will compare metrics in terms of both number of flops, and number of parity data used.
+    - learn it from scratch
+    - learn the binary copy first for n epochs, then the parity problem
+    - learn the binary copy and the parity problem at the same time (eventually with some data mix that change over time - first with more binary, then with more parity)
+
+- I will then look at baseline:
+    - performance without cot
+    - performance with only one head
+    - performance for varying emb_dim and seq_len.
 
 Longer term implementation TODO:
-- Put the token meaning somewhere (like in the config file), or in a tokenization folder, so to easily modify it without having to come back to every lines of code that uses specific values.
-    - Try to learn both the parity and the copying problem with a special first token that indicates the problem we are going to tackle. (We hope to see the iteration head that is reused by both problem, but the MLP that compute the successor states to change of behavior based on the first token).
-    - (former formulation:) Have a special first token that indicates the problem that has generated the sentence. Check how the transformer reuses circuits for one tasks to the others (it will learn useful generic skills such as copying previous tokens, but will also need to go through specific circuits).
 - Good logging and referential for experiments (maybe wandb).
 ---
 - Unit tests.
 - Move EvaluationIO to a CSV file system.
-- Be more coherent between `n`, `nb` or `num` (always use `n`), and this kind of things in general (e.g., `batch_size` vs `bsz`).
 - Be mindful of useless copy and CPU/GPU transfert of the data (e.g., in the evaluation script).
 - Remove the data_sampler part and change it with a more generic data mix scheme. Eventually reweight samples in the training loss.
 - Look into relaunching jobs when they arrive at termination + saving codebase that has launch a run
