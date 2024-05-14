@@ -9,9 +9,10 @@
 
 # Job specification
 #SBATCH --partition=devlab
-#SBATCH --time=72:00:00
+#SBATCH --time=5:00:00
 #SBATCH --mem=256G
 #SBATCH --nodes=1
+#SBATCH --partition=scavenge
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=1
 #SBATCH --gpus-per-node=1
