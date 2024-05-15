@@ -130,8 +130,8 @@ def run_grid(
     """
 
     grid = {
-        "emb_dim": [8, 16, 32, 64, 128, 256],
-        "n_len": [8, 12, 16, 24, 32, 64, 128],
+        "emb_dim": [32, 64, 128, 256],
+        "n_len": [12, 16, 32, 64],
     }
 
     CHECK_DIR.mkdir(parents=True, exist_ok=True)
@@ -159,8 +159,9 @@ def run_grid(
 
         try:
             run_experiment(config)
-        except Exception:
+        except Exception as e:
             logger.warning(f"Error for configuration: {config}.")
+            logger.warning(e)
             continue
 
 
