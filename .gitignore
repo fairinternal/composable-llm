@@ -1,14 +1,22 @@
 
+# Data and figures
 data/
+*.pdf
 
+# Package and cache
 *.egg-info
 *__pycache__
 
+# Checkpointing and runs
+*.jsonl
 *.pth
+grid_run_exp*
 
-src/mathllm/
-tutorial/
-
+# Configuration files
 .vscode/
 
+# Personal file and folder
+src/mathllm/
+tutorial/
 Notes.md
+

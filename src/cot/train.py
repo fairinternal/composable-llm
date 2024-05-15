@@ -12,14 +12,13 @@ in the root directory of this source tree.
 import logging
 import sys
 
-import fire
 import numpy as np
 import torch
 import torch.nn.functional as F
 import torch.optim as optim
 from torch.utils.data import DataLoader
 
-from cot.config import CHECKPOINT_DIR
+from cot.config import CHECK_DIR
 from cot.data import BinaryCopy, Parity
 from cot.evals import EvaluationIO
 from cot.evals.cot import FullEval
@@ -41,6 +40,7 @@ else:
 
 def train(
     problem="binary-copy",
+    data_dir=None,
     n_len=8,
     zipf_offset=0,
     zipf_coef=0,
@@ -54,6 +54,7 @@ def train(
     checkpoint_freq=100,
     overwrite_checkpoint=True,
     load_checkpoint=False,
+    check_dir=None,
     eval_freq=10,
 ):
     """
@@ -63,6 +64,8 @@ def train(
     ---------
     problem: str
         Problem to be solved. Currently supported are "binary-copy" and "parity".
+    data_dir: str
+        Path to the directory where to save the data.
     n_len: int
         Maximum number of lenghts for sequences.
     zipf_offset: float
@@ -89,6 +92,8 @@ def train(
         Whether to overwrite existing checkpoints or not.
     load_checkpoint: bool
         Whether to load a previous checkpoint for continuing training.
+    check_dir: str
+        Path to checkpoint directory.
     eval_freq: int
         Evaluation frequency.
     """
@@ -108,10 +113,10 @@ def train(
     # hyperparameters
     lengths = list(np.arange(n_len) + 1)
 
-    trainset = Problem()
+    trainset = Problem(save_dir=data_dir)
     trainset.set_data(lengths, data_type="train")
 
-    testset = Problem()
+    testset = Problem(save_dir=data_dir)
     testset.set_data(lengths, data_type="test")
 
     if batch_size is None:
@@ -142,11 +147,12 @@ def train(
 
     losses = np.empty(n_epochs)
 
-    check_dir = CHECKPOINT_DIR / Problem.prefix
+    if check_dir is None:
+        check_dir = CHECK_DIR / Problem.prefix
     check_dir.mkdir(parents=True, exist_ok=True)
 
     model = Transformer(config)
-    logger.info(f"Model: {model}.")
+    logger.debug(f"Model: {model}.")
 
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)
 
@@ -264,13 +270,9 @@ def train(
 
 
 if __name__ == "__main__":
-    import signal
+    import fire
 
     from cot.config import logging_datefmt, logging_format, logging_level
-    from cot.utils import handle_sig, handle_term
-
-    signal.signal(signal.SIGUSR1, handle_sig)
-    signal.signal(signal.SIGTERM, handle_term)
 
     logging.basicConfig(
         format=logging_format,

@@ -2,35 +2,41 @@
 
 ## TODOS
 
-TODO NOW:
-- [ ] Finish to write the training loop to search for clear attention maps:
-    - Write scripts to launch runs on the cluster.
+Plan of Attack 
+- Wes will do the position embeddings
+    - eventually it would be nice to see the apparence of patterns similar to the modular addition paper.
+- I will do the successor function
+    - Find a network that learn the binary copy with the perfect accuracy. Show that we can learn the second layer MLP only in order to go from binary to parity.
 
-TODO in a near future:
-- [ ] Implement a baseline without CoT
-- [ ] Make a better dataloader to explore different data mix and curriculum.
-    - be mindful of file name to avoid mixing, or overwriting stuffs.
+- I will reimplement the tokenizer to add a special token that select the problem. Then I will look at differnet option to learn the parity problem. I will compare metrics in terms of both number of flops, and number of parity data used.
+    - learn it from scratch
+    - learn the binary copy first for n epochs, then the parity problem
+    - learn the binary copy and the parity problem at the same time (eventually with some data mix that change over time - first with more binary, then with more parity)
 
+- I will then look at baseline:
+    - performance without cot
+    - performance with only one head
+    - performance for varying emb_dim and seq_len.
+
+Longer term implementation TODO:
+- Good logging and referential for experiments (maybe wandb).
+---
+- Unit tests.
+- Move EvaluationIO to a CSV file system.
+- Be mindful of useless copy and CPU/GPU transfert of the data (e.g., in the evaluation script).
+- Remove the data_sampler part and change it with a more generic data mix scheme. Eventually reweight samples in the training loss.
+- Look into relaunching jobs when they arrive at termination + saving codebase that has launch a run
+- have a better separation between the training loop (a function that takes as inputs some optim parameter, dataset, model and eval class), and how we instanciate it (a change in its arguments, the data, the eval class and so on).
+- deal with error when load_checkpoint=True, but there is no checkpoint.
+
+## Disorganized thoughts 
 The following is not really well organized, but it gives food for thoughts. We should focus on some meaningful experiments that are insightful beyond our toy setup.
 
 Research TODO:
-- [ ] Look at skill transfert between binary problem and copying problem / look a bit into curriculum... / look also at a mix of data / also mix of length.
-- [ ] Look at how the substraction of position embeddings is performed by the first MLP / look at the position embeddings (can we freeze them if the embedding dimension is big enough).
-- [ ] Look at how the state updates ($s = F(s, x)$) is performed by the second MLP when we solve for the parity problem.
-- [ ] Look at how the work get shared across heads when we have too much capacity.
-
-- TODO after the deadline
-
-Interesting experiments to run:
-- [ ] Have a special first token that indicates the problem that has generated the sentence. Check how the transformer reuses circuits for one tasks to the others (it will learn useful generic skills such as copying previous tokens, but will also need to go through specific circuits).
-
-Longer term implementation TODO:
-- Unit tests
-- Move EvaluationIO to a CSV file system
-- Be more coherent between `n`, `nb` or `num` (always use `n`), and this kind of things in general (e.g., `batch_size` vs `bsz`).
-- Good logging and referential for experiments (maybe wandb).
-- Put the token meaning somewhere (like in the config file), or in a tokenization folder, so to easily modify it without having to come back to every lines of code that uses specific values.
-- Be mindful of useless copy and CPU/GPU transfert of the data (e.g., in the evaluation script).
+- Look at skill transfert between binary problem and copying problem / look a bit into curriculum... / look also at a mix of data / also mix of length.
+- Look at how the substraction of position embeddings is performed by the first MLP / look at the position embeddings (can we freeze them if the embedding dimension is big enough).
+- Look at how the state updates ($s = F(s, x)$) is performed by the second MLP when we solve for the parity problem.
+- Look at how the work get shared across heads when we have too much capacity, and how we might disambiguate the work done if we know the right circuit.
 
 Simple questions:
 - does continuing training make the attention maps cleaner while the accuracy does not change? If yes, we can make a link with grokking and emergence of more functorial pattern (link with sparsity induced bias with SGD - Loucas paper).
@@ -40,6 +46,7 @@ Simple questions:
 - investigate the small weird stuff on the attention map: it seems that there should be a different circuit hidden for a special position.
 - if we do a mix parity and binary, maybe we will force more to have the circuit we want
 - if we reduce the position embedding dimension, maybe we will have a cleaner structure appearing in the position embedding, that allows to find a rule for substraction, rather than memorize all substraction.
+- reuse Wes code (or submitit) to save the codebase before running a script, to avoid that changes to the codebase modify runs that are pending but have not started to run. Look also at wandb and hydra.
 
 ## Objective
 
