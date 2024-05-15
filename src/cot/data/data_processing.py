@@ -451,7 +451,7 @@ def data_processing(
         case "no-cot":
             problem = Parity(cot=False, save_dir=save_dir)
         case "mix":
-            problem = MixedDataset(data_mix=data_mix)
+            problem = MixedDataset(data_mix=data_mix, save_dir=save_dir)
         case _:
             raise ValueError(f"Problem {problem} not recognized.")
 
