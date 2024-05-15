@@ -19,7 +19,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 from torch.utils.data import DataLoader
 
-from cot.config import CHECK_DIR
+from cot.config import CHECK_DIR, TOKEN_DICT
 from cot.data import BinaryCopy, Parity
 from cot.evals import EvaluationIO
 from cot.evals.cot import FullEval
@@ -221,7 +221,7 @@ def train(
             targets = sequence[:, 1:]
 
             # only train on the chain-of-thoughts process, EoI is represented by 1 in our case
-            ind = targets == 1
+            ind = targets == TOKEN_DICT["EoI"]
             cot_mask = ind.cumsum(axis=1)
             cot_mask[ind] = 0
             cot_mask = cot_mask.to(dtype=bool)

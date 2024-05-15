@@ -11,6 +11,8 @@ in the root directory of this source tree.
 
 import torch
 
+from cot.config import TOKEN_DICT
+
 
 class AccuracyEval:
 
@@ -49,7 +51,7 @@ class AccuracyEval:
         pred = pred[:, :-1]
         ground_truth = data[:, 1:]
 
-        ind = ground_truth == 1
+        ind = ground_truth == TOKEN_DICT["EoI"]
         cot_mask = ind.cumsum(axis=1)
         cot_mask[ind] = 0
         cot_mask = cot_mask.to(dtype=bool)
@@ -58,7 +60,7 @@ class AccuracyEval:
         token_errors = pred != ground_truth
         seq_errors = token_errors.any(dim=1)
 
-        eois = torch.argmax((data == 1).to(int), dim=1)
+        eois = torch.argmax((data == TOKEN_DICT["EoI"]).to(int), dim=1)
         all_eois = torch.unique(eois)
 
         errors_by_len = torch.empty((len(all_eois)), device=eois.device, dtype=float)
@@ -106,9 +108,9 @@ class GrammarEval:
             pred = logits.argmax(dim=-1)
 
         out = torch.zeros(3, device=device, dtype=float)
-        out[0] = ((pred == 0).sum(dim=-1) == 1).to(float).mean().item()
-        out[1] = ((pred == 1).sum(dim=-1) == 1).to(float).mean().item()
-        tmp = (pred == 2).to(int)
+        out[0] = ((pred == TOKEN_DICT["BoS"]).sum(dim=-1) == 1).to(float).mean().item()
+        out[1] = ((pred == TOKEN_DICT["EoI"]).sum(dim=-1) == 1).to(float).mean().item()
+        tmp = (pred == TOKEN_DICT["EoS"]).to(int)
         tmp1 = tmp.sum(dim=-1)
         tmp1 *= -1
         tmp1 += tmp.shape[1]
@@ -179,7 +181,7 @@ class AttentionEval:
         attn_peaky: tensore of size (len, 2 * n_layer * n_head = 4)
             Success metrics for the attention maps.
         """
-        eois = torch.argmax((sequences == 1).to(int), dim=1)
+        eois = torch.argmax((sequences == TOKEN_DICT["EoI"]).to(int), dim=1)
         all_eois = torch.unique(eois)
 
         attn_inv = torch.empty((len(all_eois), 2), device=eois.device, dtype=float)

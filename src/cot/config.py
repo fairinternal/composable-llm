@@ -24,7 +24,7 @@ TOKEN_DICT = {
     "EoI": 2,
     "EoS": 3,
     "parity": 4,
-    "binary-copy": 5,
+    "binary_copy": 5,
     "BoS": 6,
 }
 
@@ -34,6 +34,9 @@ TOKEN_DICT = {
 
 DATA_DIR = Path(__file__).parent.parent.parent / "data"
 CHECK_DIR = Path(__file__).parent.parent.parent / "models"
+
+# DATA_DIR = Path("/checkpoint/vivc/data/")
+# CHECK_DIR = Path("/checkpoint/vivc/models/")
 
 # -----------------------------------------------------------------------------
 # Random seed
