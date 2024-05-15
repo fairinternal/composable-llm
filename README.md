@@ -3,8 +3,6 @@
 ## TODOS
 
 Plan of Attack 
-- Describe the experimental setups
-- Get plots with the attention maps
 - Wes will do the position embeddings
     - eventually it would be nice to see the apparence of patterns similar to the modular addition paper.
 - I will do the successor function
