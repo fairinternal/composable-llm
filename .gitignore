@@ -1,14 +1,16 @@
 
-# Data
+# Data and figures
 data/
+*.pdf
 
 # Package and cache
 *.egg-info
 *__pycache__
 
-# Checkpointing and run config
+# Checkpointing and runs
 *.jsonl
 *.pth
+grid_run_exp*
 
 # Configuration files
 .vscode/
