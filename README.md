@@ -10,14 +10,16 @@ Plan of Attack
     - RN, exp1 is running with binary copy: it would allow to get clean iteration head, after what we will learn only the second layer MLP with the parity data.
 
 - I will reimplement the tokenizer to add a special token that select the problem. Then I will look at differnet option to learn the parity problem. I will compare metrics in terms of both number of flops, and number of parity data used.
+    - Use the token dict in the data_processing
+    - Use the token dict in the grammar_eval
+Experiments
     - learn it from scratch
     - learn the binary copy first for n epochs, then the parity problem
     - learn the binary copy and the parity problem at the same time (eventually with some data mix that change over time - first with more binary, then with more parity)
 
 - I will then look at baseline:
     - performance without cot
-    - performance with only one head
-    - performance for varying emb_dim and seq_len.
+    - performance with only one layer: change the eval in the train script.
 
 - Clean the codebase to send it to NeurIPS.
 
