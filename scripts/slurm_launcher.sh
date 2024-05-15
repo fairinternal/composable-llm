@@ -2,8 +2,8 @@
 
 # Logging configuration
 #SBATCH --job-name=cot-exp
-#SBATCH --output=/checkpoint/%u/cot-exp/%a-%t.out
-#SBATCH --error=/checkpoint/%u/cot-exp/%a-%t.err
+#SBATCH --output=/checkpoint/%u/cot-exp/%j-%a.out
+#SBATCH --error=/checkpoint/%u/cot-exp/$j-%a.err
 #SBATCH --mail-type=END
 #SBATCH --mail-user=%u@meta.com
 
