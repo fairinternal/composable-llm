@@ -139,18 +139,11 @@ class SequenceDataset(Dataset):
         # ... deduce memory allocation
         indices = np.cumsum(n_data_by_lens, dtype=int)
         indices = np.insert(indices, 0, 0)
-        data = np.full((indices[-1], self.get_len(max(lengths)) + 2), TOKEN_DICT["EoS"], dtype=np.int32)
-
-        # add spectial token at begining of sentence
-        if self.prefix in TOKEN_DICT:
-            data[:, 0] = TOKEN_DICT[self.prefix]
-        else:
-            logger.info(f"Prefix {self.prefix} not in TOKEN_DICT, falling back to generic BoS.")
-            data[:, 0] = TOKEN_DICT["BoS"]
+        data = np.full((indices[-1], self.get_len(max(lengths)) + 1), TOKEN_DICT["EoS"], dtype=np.int32)
 
         # load the data in the allocated memory
         for i, seq_len in enumerate(lengths):
-            data[indices[i] : indices[i + 1], 1 : self.get_len(seq_len) + 1] = np.load(
+            data[indices[i] : indices[i + 1], : self.get_len(seq_len)] = np.load(
                 self.save_dir / f"{data_type}_{seq_len}.npy"
             )
 
@@ -224,7 +217,7 @@ class BinaryCopy(SequenceDataset):
     @classmethod
     def generate_fixed_len_data(cls, seq_len, n_data, rng=None):
         """
-        Generate parity data with fixed sequence length.
+        Generate copy data with fixed sequence length.
 
         Parameters
         ----------
@@ -255,26 +248,33 @@ class BinaryCopy(SequenceDataset):
         # ... exhaustive case
         if 2**seq_len == n_data:
             powers_of_two = 2 ** np.arange(seq_len)[::-1]
-            data[:, :seq_len] = (np.arange(n_data).reshape(-1, 1) & powers_of_two != 0).astype(np.int32)
+            data[:, 1 : seq_len + 1] = (np.arange(n_data).reshape(-1, 1) & powers_of_two != 0).astype(np.int32)
         # ... non-exhaustive case
         else:
-            data[:, :seq_len] = (rng.random((n_data, seq_len)) > 0.5).astype(np.int32)
+            data[:, 1 : seq_len + 1] = (rng.random((n_data, seq_len)) > 0.5).astype(np.int32)
         ind_neg = data == 0
         ind_pos = data == 1
         data[ind_neg] = TOKEN_DICT[0]
         data[ind_pos] = TOKEN_DICT[1]
 
+        # add spectial token at begining of sentence
+        if cls.prefix in TOKEN_DICT:
+            data[:, 0] = TOKEN_DICT[cls.prefix]
+        else:
+            logger.info(f"Prefix {cls.prefix} not in TOKEN_DICT, falling back to generic BoS.")
+            data[:, 0] = TOKEN_DICT["BoS"]
+
         # end of input
-        data[:, seq_len] = TOKEN_DICT["EoI"]
+        data[:, seq_len + 1] = TOKEN_DICT["EoI"]
 
         # copying the data
-        data[:, seq_len + 1 :] = data[:, :seq_len]
+        data[:, seq_len + 2 :] = data[:, 1 : seq_len + 1]
         return data
 
     @classmethod
     def get_len(cls, seq_len):
         """Full sequence length."""
-        return 2 * seq_len + 1
+        return 2 * seq_len + 2
 
 
 # -----------------------------------------------------------------------------
@@ -330,32 +330,86 @@ class Parity(SequenceDataset):
         # ... exhaustive case
         if 2**seq_len == n_data:
             powers_of_two = 2 ** np.arange(seq_len)[::-1]
-            data[:, :seq_len] = (np.arange(n_data).reshape(-1, 1) & powers_of_two != 0).astype(np.int32)
+            data[:, 1 : seq_len + 1] = (np.arange(n_data).reshape(-1, 1) & powers_of_two != 0).astype(np.int32)
         # ... non-exhaustive case
         else:
-            data[:, :seq_len] = (rng.random((n_data, seq_len)) > 0.5).astype(np.int32)
+            data[:, 1 : seq_len + 1] = (rng.random((n_data, seq_len)) > 0.5).astype(np.int32)
 
         if self.cot:
             # CoT data
-            data[:, seq_len + 1 :] = np.cumsum(data[:, :seq_len], axis=1) % 2
+            data[:, seq_len + 2 :] = np.cumsum(data[:, 1 : seq_len + 1], axis=1) % 2
         else:
-            data[:, seq_len + 1] = np.sum(data[:, :seq_len], axis=1) % 2
+            data[:, seq_len + 2] = np.sum(data[:, 1 : seq_len + 1], axis=1) % 2
             assert TOKEN_DICT["EoS"] not in [0, 1]
-            data[:, seq_len + 2 :] = TOKEN_DICT["EoS"]
+            data[:, seq_len + 3 :] = TOKEN_DICT["EoS"]
 
         ind_neg = data == 0
         ind_pos = data == 1
         data[ind_neg] = TOKEN_DICT[0]
         data[ind_pos] = TOKEN_DICT[1]
 
+        # add spectial token at begining of sentence
+        if self.prefix in TOKEN_DICT:
+            data[:, 0] = TOKEN_DICT[self.prefix]
+        else:
+            logger.info(f"Prefix {self.prefix} not in TOKEN_DICT, falling back to generic BoS.")
+            data[:, 0] = TOKEN_DICT["BoS"]
+
         # end of input
-        data[:, seq_len] = TOKEN_DICT["EoI"]
+        data[:, seq_len + 1] = TOKEN_DICT["EoI"]
 
         return data
 
     def get_len(self, seq_len):
         """Full sequence length."""
-        return 2 * seq_len + 1
+        return 2 * seq_len + 2
+
+
+# -----------------------------------------------------------------------------
+# Mixed data
+# -----------------------------------------------------------------------------
+
+
+class MixedDataset(SequenceDataset):
+    prefix = "mix"
+
+    def __init__(self, data_mix=0.5, save_dir=None):
+        self.data_mix = data_mix
+        self.binary = BinaryCopy()
+        self.parity = Parity()
+        super().__init__(save_dir=save_dir)
+
+    def generate_fixed_len_data(self, seq_len, n_data, rng=None):
+        """
+        Generate data with fixed sequence length.
+
+        Parameters
+        ----------
+        seq_len : int
+            Length of the sequence.
+        n_data : int
+            Number of data points to generate.
+        rng : numpy.random.Generator, optional
+            Random number generator.
+
+        Returns
+        -------
+        data: numpy.ndarray
+            Generated data containing sequence of tokens specified by TOKEN_DICT.
+        """
+        n_binary = int(n_data * self.data_mix)
+        n_parity = n_data - n_binary
+
+        data_binary = self.binary.generate_fixed_len_data(seq_len, n_binary, rng=rng)
+        data_parity = self.parity.generate_fixed_len_data(seq_len, n_parity, rng=rng)
+
+        data = np.vstack((data_binary, data_parity))
+        return data
+
+    @classmethod
+    def get_len(cls, seq_len):
+        """Full sequence length."""
+        return 2 * seq_len + 2
 
 
 # -----------------------------------------------------------------------------
@@ -369,6 +423,7 @@ def data_processing(
     split_probas=0.5,
     n_data_per_len=2048,
     save_dir=None,
+    data_mix=0.5,
 ):
     """
     Training a Transformer model on a specified problem.
@@ -385,6 +440,8 @@ def data_processing(
         Maximum number of data to generate for a given length.
     save_dir: str
         Path of the directory where to save the data.
+    data_mix: float
+        Percentage of copy vs parity data when mixing data.
     """
     match problem:
         case "binary-copy":
@@ -393,6 +450,8 @@ def data_processing(
             problem = Parity(save_dir=save_dir)
         case "no-cot":
             problem = Parity(cot=False, save_dir=save_dir)
+        case "mix":
+            problem = MixedDataset(data_mix=data_mix)
         case _:
             raise ValueError(f"Problem {problem} not recognized.")
 

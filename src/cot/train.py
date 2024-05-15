@@ -20,7 +20,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 
 from cot.config import CHECK_DIR, TOKEN_DICT
-from cot.data import BinaryCopy, Parity
+from cot.data import BinaryCopy, MixedDataset, Parity
 from cot.evals import EvaluationIO
 from cot.evals.cot import FullEval
 from cot.models import Transformer, TransformerConfig
@@ -110,6 +110,8 @@ def train(
             Problem = Parity
         case "no-cot":
             Problem = partial(Parity, cot=False)
+        case "mix":
+            Problem = MixedDataset
         case _:
             raise ValueError(f"Problem {problem} not recognized.")
 
