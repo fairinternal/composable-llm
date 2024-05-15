@@ -411,10 +411,7 @@ class Parity(SequenceDataset):
 
     def get_len(self, seq_len):
         """Full sequence length."""
-        if self.cot:
-            return 2 * seq_len + 1
-        else:
-            return seq_len + 2
+        return 2 * seq_len + 1
 
 
 # -----------------------------------------------------------------------------
