@@ -71,7 +71,7 @@ class AccuracyEval:
         return errors_by_len
 
 
-class GammarEval:
+class GrammarEval:
 
     def __init__(self):
         self.meaning = ["boi", "eoi", "eos"]
@@ -212,7 +212,7 @@ class FullEval:
 
     def __init__(self, lengths):
         self.acc_eval = AccuracyEval(lengths)
-        self.grammar_eval = GammarEval()
+        self.grammar_eval = GrammarEval()
         self.attn_eval = AttentionEval(lengths)
         self.meaning = self.acc_eval.meaning + self.grammar_eval.meaning + self.attn_eval.meaning
         self.eval_dim = len(self.meaning)
