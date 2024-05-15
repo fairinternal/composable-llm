@@ -7,6 +7,7 @@ Plan of Attack
     - eventually it would be nice to see the apparence of patterns similar to the modular addition paper.
 - I will do the successor function
     - Find a network that learn the binary copy with the perfect accuracy. Show that we can learn the second layer MLP only in order to go from binary to parity.
+    - RN, exp1 is running with binary copy: it would allow to get clean iteration head, after what we will learn only the second layer MLP with the parity data.
 
 - I will reimplement the tokenizer to add a special token that select the problem. Then I will look at differnet option to learn the parity problem. I will compare metrics in terms of both number of flops, and number of parity data used.
     - learn it from scratch
@@ -17,6 +18,8 @@ Plan of Attack
     - performance without cot
     - performance with only one head
     - performance for varying emb_dim and seq_len.
+
+- Clean the codebase to send it to NeurIPS.
 
 Longer term implementation TODO:
 - Good logging and referential for experiments (maybe wandb).
