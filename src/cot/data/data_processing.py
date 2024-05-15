@@ -283,13 +283,13 @@ class BinaryCopy(SequenceDataset):
 
 
 class Copy(SequenceDataset):
-    prefix = "copy"
     vocab_size = 10
 
     def __init__(self, save_dir=None, vocab_size=None):
-        super().__init__(save_dir=save_dir)
         if vocab_size is not None:
             self.vocab_size = vocab_size
+        self.prefix = f"copy_{self.vocab_size}"
+        super().__init__(save_dir=save_dir)
 
     def generate_fixed_len_data(self, seq_len, n_data, rng=None):
         """
@@ -345,11 +345,14 @@ class Copy(SequenceDataset):
 
 
 class Parity(SequenceDataset):
-    prefix = "parity"
 
     def __init__(self, cot=True, save_dir=None):
-        super().__init__(save_dir=save_dir)
         self.cot = cot
+        if self.cot:
+            self.prefix = "parity"
+        else:
+            self.prefix = "no_cot"
+        super().__init__(save_dir=save_dir)
 
     def generate_fixed_len_data(self, seq_len, n_data, rng=None):
         """
@@ -383,7 +386,7 @@ class Parity(SequenceDataset):
         if 2**seq_len < n_data:
             n_data = 2**seq_len
         length = self.get_len(seq_len)
-        data = np.empty((n_data, length), dtype=np.int32)
+        data = np.full((n_data, length), 2, dtype=np.int32)
 
         # input data
         # ... exhaustive case
@@ -432,7 +435,7 @@ def data_processing(
     Paramters
     ---------
     problem: str
-        Problem to be solved. Currently supported are "binary-copy" and "parity".
+        Problem to be solved. Currently supported are "binary-copy", "parity", and "no-cot".
     n_len: int
         Maximum number of lenghts for sequences.
     split_probas: float or list of float
@@ -447,6 +450,8 @@ def data_processing(
             problem = BinaryCopy(save_dir=save_dir)
         case "parity":
             problem = Parity(save_dir=save_dir)
+        case "no-cot":
+            problem = Parity(cot=False, save_dir=save_dir)
         case _:
             raise ValueError(f"Problem {problem} not recognized.")
 

@@ -11,6 +11,7 @@ in the root directory of this source tree.
 
 import logging
 import sys
+from functools import partial
 
 import numpy as np
 import torch
@@ -63,7 +64,7 @@ def train(
     Paramters
     ---------
     problem: str
-        Problem to be solved. Currently supported are "binary-copy" and "parity".
+        Problem to be solved. Currently supported are "binary-copy", "parity", and "no-cot".
     data_dir: str
         Path to the directory where to save the data.
     n_len: int
@@ -107,6 +108,8 @@ def train(
             Problem = BinaryCopy
         case "parity":
             Problem = Parity
+        case "no-cot":
+            Problem = partial(Parity, cot=False)
         case _:
             raise ValueError(f"Problem {problem} not recognized.")
 
@@ -129,7 +132,7 @@ def train(
     sampler = trainset.get_sampler_by_len(probas_by_len)
 
     loader = DataLoader(trainset, batch_size=batch_size, sampler=sampler)
-    logger.info(f"Problem: {Problem.prefix}. Number of training data: {len(trainset)}.")
+    logger.info(f"Problem: {trainset.prefix}. Number of training data: {len(trainset)}.")
 
     # --------------------------------------------------------------------------
     # Model
@@ -148,7 +151,7 @@ def train(
     losses = np.empty(n_epochs)
 
     if check_dir is None:
-        check_dir = CHECK_DIR / Problem.prefix
+        check_dir = CHECK_DIR / trainset.prefix
     check_dir.mkdir(parents=True, exist_ok=True)
 
     model = Transformer(config)
