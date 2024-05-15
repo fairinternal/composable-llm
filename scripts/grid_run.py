@@ -36,7 +36,7 @@ class MainConfig:
     # Data
     data_dir: str = None
     problem: str = "binary-copy"
-    n_len: int = 16
+    n_len: int = 32
     split_probas: float = 0.5
     n_data_per_len: int = 2048
     zipf_offset: int = 0
@@ -50,8 +50,8 @@ class MainConfig:
 
     # Optimization
     n_epochs: int = 1000
-    batch_size: int = None
-    learning_rate: float = 1e-3
+    batch_size: int = 256
+    learning_rate: float = 3e-4
 
     # Checkpointing
     checkpoint_freq: int = 100
@@ -130,8 +130,8 @@ def run_grid(
     """
 
     grid = {
-        "learning_rate": [3e-4, 1e-3, 3e-3],
-        "batch_size": [64, 256, 1024, 2048, 4096],
+        "emb_dim": [8, 16, 32, 64, 128, 256],
+        "n_len": [8, 12, 16, 24, 32, 64, 128],
     }
 
     CHECK_DIR.mkdir(parents=True, exist_ok=True)
