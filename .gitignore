@@ -10,7 +10,6 @@ data/
 # Checkpointing and runs
 *.jsonl
 *.pth
-grid_run_exp*
 launcher_exp.sh
 
 # Configuration files
