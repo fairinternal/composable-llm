@@ -22,7 +22,7 @@ from torch.utils.data import DataLoader
 from cot.config import CHECK_DIR, TOKEN_DICT
 from cot.data import BinaryCopy, MixedDataset, Parity
 from cot.evals import EvaluationIO
-from cot.evals.cot import FullEval
+from cot.evals.cot import AccuracyEval, FullEval
 from cot.models import Transformer, TransformerConfig
 
 logger = logging.getLogger(__name__)
@@ -56,6 +56,7 @@ def train(
     overwrite_checkpoint=True,
     load_checkpoint=False,
     check_dir=None,
+    full_eval=False,
     eval_freq=10,
 ):
     """
@@ -95,6 +96,8 @@ def train(
         Whether to load a previous checkpoint for continuing training.
     check_dir: str
         Path to checkpoint directory.
+    full_eval: bool
+        Wether to evaluate for the special circuit or not.
     eval_freq: int
         Evaluation frequency.
     """
@@ -185,7 +188,10 @@ def train(
     # Evaluation Placeholders
     # --------------------------------------------------------------------------
 
-    evaluator = FullEval(lengths)
+    if full_eval:
+        evaluator = FullEval(lengths)
+    else:
+        evaluator = AccuracyEval(lengths)
     eval_dim = evaluator.eval_dim
 
     def eval(model):
