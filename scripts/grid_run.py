@@ -45,8 +45,8 @@ class MainConfig:
     # Model
     emb_dim: int = 128
     emb_dropout: float = 0.1
-    pos_dim: int = (None,)
-    freeze_pos: bool = (False,)
+    pos_dim: int = None
+    freeze_pos: bool = False
     n_head: int = 1
     n_layer: int = 2
 
