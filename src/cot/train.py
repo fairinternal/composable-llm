@@ -11,6 +11,7 @@ in the root directory of this source tree.
 
 import logging
 import sys
+from functools import partial
 
 import numpy as np
 import torch
@@ -18,10 +19,10 @@ import torch.nn.functional as F
 import torch.optim as optim
 from torch.utils.data import DataLoader
 
-from cot.config import CHECK_DIR
-from cot.data import BinaryCopy, Parity
+from cot.config import CHECK_DIR, TOKEN_DICT
+from cot.data import BinaryCopy, MixedDataset, Parity
 from cot.evals import EvaluationIO
-from cot.evals.cot import FullEval
+from cot.evals.cot import AccuracyEval, FullEval
 from cot.models import Transformer, TransformerConfig
 
 logger = logging.getLogger(__name__)
@@ -55,6 +56,7 @@ def train(
     overwrite_checkpoint=True,
     load_checkpoint=False,
     check_dir=None,
+    full_eval=False,
     eval_freq=10,
 ):
     """
@@ -63,7 +65,7 @@ def train(
     Paramters
     ---------
     problem: str
-        Problem to be solved. Currently supported are "binary-copy" and "parity".
+        Problem to be solved. Currently supported are "binary-copy", "parity", and "no-cot".
     data_dir: str
         Path to the directory where to save the data.
     n_len: int
@@ -94,6 +96,8 @@ def train(
         Whether to load a previous checkpoint for continuing training.
     check_dir: str
         Path to checkpoint directory.
+    full_eval: bool
+        Wether to evaluate for the special circuit or not.
     eval_freq: int
         Evaluation frequency.
     """
@@ -107,6 +111,10 @@ def train(
             Problem = BinaryCopy
         case "parity":
             Problem = Parity
+        case "no-cot":
+            Problem = partial(Parity, cot=False)
+        case "mix":
+            Problem = MixedDataset
         case _:
             raise ValueError(f"Problem {problem} not recognized.")
 
@@ -129,7 +137,7 @@ def train(
     sampler = trainset.get_sampler_by_len(probas_by_len)
 
     loader = DataLoader(trainset, batch_size=batch_size, sampler=sampler)
-    logger.info(f"Problem: {Problem.prefix}. Number of training data: {len(trainset)}.")
+    logger.info(f"Problem: {trainset.prefix}. Number of training data: {len(trainset)}.")
 
     # --------------------------------------------------------------------------
     # Model
@@ -148,7 +156,7 @@ def train(
     losses = np.empty(n_epochs)
 
     if check_dir is None:
-        check_dir = CHECK_DIR / Problem.prefix
+        check_dir = CHECK_DIR / trainset.prefix
     check_dir.mkdir(parents=True, exist_ok=True)
 
     model = Transformer(config)
@@ -180,7 +188,10 @@ def train(
     # Evaluation Placeholders
     # --------------------------------------------------------------------------
 
-    evaluator = FullEval(lengths)
+    if full_eval:
+        evaluator = FullEval(lengths)
+    else:
+        evaluator = AccuracyEval(lengths)
     eval_dim = evaluator.eval_dim
 
     def eval(model):
@@ -218,7 +229,7 @@ def train(
             targets = sequence[:, 1:]
 
             # only train on the chain-of-thoughts process, EoI is represented by 1 in our case
-            ind = targets == 1
+            ind = targets == TOKEN_DICT["EoI"]
             cot_mask = ind.cumsum(axis=1)
             cot_mask[ind] = 0
             cot_mask = cot_mask.to(dtype=bool)

@@ -49,7 +49,7 @@ class MainConfig:
     n_layer: int = 2
 
     # Optimization
-    n_epochs: int = 1000
+    n_epochs: int = 5000
     batch_size: int = 256
     learning_rate: float = 3e-4
 
@@ -58,6 +58,7 @@ class MainConfig:
     overwrite_checkpoint: bool = True
     load_checkpoint: bool = False
     check_dir: str = None
+    full_eval: bool = False
     eval_freq: int = 10
 
     def __post_init__(self):
@@ -107,6 +108,7 @@ def run_experiment(
         overwrite_checkpoint=config.overwrite_checkpoint,
         load_checkpoint=config.load_checkpoint,
         check_dir=config.check_dir,
+        full_eval=config.full_eval,
         eval_freq=config.eval_freq,
     )
 
@@ -130,8 +132,10 @@ def run_grid(
     """
 
     grid = {
-        "emb_dim": [32, 64, 128, 256],
-        "n_len": [12, 16, 32, 64],
+        "problem": ["parity", "no-cot", "binary-copy"],
+        "emb_dim": range(8, 128),
+        "n_len": range(4, 32),
+        "full_eval": [True],
     }
 
     CHECK_DIR.mkdir(parents=True, exist_ok=True)

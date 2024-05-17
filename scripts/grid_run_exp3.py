@@ -41,6 +41,7 @@ class MainConfig:
     n_data_per_len: int = 2048
     zipf_offset: int = 0
     zipf_coef: float = 0
+    data_mix: float = 0.5
 
     # Model
     emb_dim: int = 128
@@ -49,7 +50,7 @@ class MainConfig:
     n_layer: int = 2
 
     # Optimization
-    n_epochs: int = 1000
+    n_epochs: int = 5000
     batch_size: int = 256
     learning_rate: float = 3e-4
 
@@ -58,6 +59,7 @@ class MainConfig:
     overwrite_checkpoint: bool = True
     load_checkpoint: bool = False
     check_dir: str = None
+    full_eval: bool = False
     eval_freq: int = 10
 
     def __post_init__(self):
@@ -88,6 +90,7 @@ def run_experiment(
         split_probas=config.split_probas,
         n_data_per_len=config.n_data_per_len,
         save_dir=config.data_dir,
+        data_mix=config.data_mix,
     )
 
     train(
@@ -107,6 +110,7 @@ def run_experiment(
         overwrite_checkpoint=config.overwrite_checkpoint,
         load_checkpoint=config.load_checkpoint,
         check_dir=config.check_dir,
+        full_eval=config.full_eval,
         eval_freq=config.eval_freq,
     )
 
@@ -130,8 +134,10 @@ def run_grid(
     """
 
     grid = {
-        "emb_dim": [32, 64, 128, 256],
-        "n_len": [12, 16, 32, 64],
+        "problem": ["mix"],
+        "full_eval": [True],
+        "data_mix": [i / 20 for i in range(1, 20)],
+        "overwrite_checkpoint": [False],
     }
 
     CHECK_DIR.mkdir(parents=True, exist_ok=True)
