@@ -285,7 +285,7 @@ class Embedding(nn.Module):
         if self.pos_emb is not None:
             L = x.size(1)
             assert L <= self.L, f"Input sequence length {L} is longer than the maximum sequence length {self.L}"
-            out[:, : self.pos_dim] = out[:, : self.pos_dim] + self.pos_emb.weight[:L]
+            out[..., : self.pos_dim] = out[..., : self.pos_dim] + self.pos_emb.weight[:L]
         out = F.dropout(out, p=self.dropout, training=self.training)
         return out
 
