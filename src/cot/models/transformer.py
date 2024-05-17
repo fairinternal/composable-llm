@@ -272,8 +272,8 @@ class Embedding(nn.Module):
         # position embedding
         if config.pos_emb:
             self.L = config.seq_len
-            self.pos_emb = nn.Embedding(self.L, config.emb_dim)
-            self.register_buffer("position", torch.arange(self.L))
+            self.pos_dim = config.pos_dim
+            self.pos_emb = nn.Embedding(self.L, self.pos_dim).requires_grad_(~config.freeze_pos)
         else:
             self.pos_emb = None
 
@@ -285,7 +285,7 @@ class Embedding(nn.Module):
         if self.pos_emb is not None:
             L = x.size(1)
             assert L <= self.L, f"Input sequence length {L} is longer than the maximum sequence length {self.L}"
-            out = out + self.pos_emb(self.position[:L])
+            out[:, : self.pos_dim] = out[:, : self.pos_dim] + self.pos_emb[:L]
         out = F.dropout(out, p=self.dropout, training=self.training)
         return out
 
@@ -371,6 +371,8 @@ class TransformerConfig:
     vocab_size: int = -1
     emb_dim: int = -1
     pos_emb: bool = True
+    pos_dim: int = None
+    freeze_pos: bool = False
     seq_len: int = -1
     emb_dropout: float = None
 
@@ -400,6 +402,10 @@ class TransformerConfig:
     dropout: float = 0.0
 
     def __post_init__(self):
+        # position embedding dimension
+        if self.pos_dim is None:
+            self.pos_dim = self.emd_dim
+
         # hidden feed-forward dimension
         if self.ffn_dim is None:
             self.ffn_dim = 4 * self.emb_dim

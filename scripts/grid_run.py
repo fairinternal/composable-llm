@@ -45,6 +45,8 @@ class MainConfig:
     # Model
     emb_dim: int = 128
     emb_dropout: float = 0.1
+    pos_dim: int = (None,)
+    freeze_pos: bool = (False,)
     n_head: int = 1
     n_layer: int = 2
 
@@ -98,6 +100,8 @@ def run_experiment(
         zipf_coef=config.zipf_coef,
         emb_dim=config.emb_dim,
         emb_dropout=config.emb_dropout,
+        pos_dim=config.pos_dim,
+        freeze_pos=config.freeze_pos,
         n_head=config.n_head,
         n_layer=config.n_layer,
         n_epochs=config.n_epochs,

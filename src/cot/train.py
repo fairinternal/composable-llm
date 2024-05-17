@@ -47,6 +47,8 @@ def train(
     zipf_coef=0,
     emb_dim=128,
     emb_dropout=0.1,
+    pos_dim=None,
+    freeze_pos=False,
     n_head=1,
     n_layer=2,
     n_epochs=1000,
@@ -78,6 +80,10 @@ def train(
         Embedding dimension size.
     emb_dropout: float
         Dropout rate for the embeddings.
+    pos_dim: int
+        Dimension of the positional embedding. Default is `emb_dim`.
+    freeze_pos: bool
+        Wether to learn the position embedding or to freeze them.
     n_head: int
         Number of attention heads.
     n_layer: int
@@ -147,6 +153,8 @@ def train(
         vocab_size=torch.max(trainset.data).item() + 1,
         emb_dim=emb_dim,
         pos_emb=True,
+        pos_dim=pos_dim,
+        freeze_pos=freeze_pos,
         seq_len=len(trainset[0]),
         emb_dropout=emb_dropout,
         n_head=n_head,
