@@ -8,9 +8,8 @@ data/
 *__pycache__
 
 # Checkpointing and runs
-*.jsonl
-*.pth
-launcher_exp.sh
+models/
+savings/
 
 # Configuration files
 .vscode/
