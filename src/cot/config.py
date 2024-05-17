@@ -34,6 +34,7 @@ TOKEN_DICT = {
 
 DATA_DIR = Path(__file__).parent.parent.parent / "data"
 CHECK_DIR = Path(__file__).parent.parent.parent / "models"
+SAVE_DIR = Path(__file__).parent.parent.parent / "savings"
 
 # -----------------------------------------------------------------------------
 # Random seed

@@ -83,8 +83,6 @@ for config in all_configs:
     n_layer = config["n_layer"]
     check_dir = Path(config["check_dir"])
 
-    assert n_head == 1 and n_layer == 2
-
     try:
         checkpoint = torch.load(check_dir / "model.pth")
     except Exception as e:
@@ -175,7 +173,7 @@ for config in all_configs:
     except Exception as e:
         logger.info(e)
 
-    # try:
-    #     subprocess.run(["rm", "-rf", check_dir])
-    # except Exception as e:
-    #     logger.info(e)
+    try:
+        subprocess.run(["rm", "-rf", check_dir])
+    except Exception as e:
+        logger.info(e)
