@@ -57,7 +57,7 @@ def transfer(
 
     Paramters
     ---------
-    load_checkpoint: bool
+    load_path: str
         Path of the model to load before starting finetuning.
     finetune_mlp2: bool
         Wether to only finetune the second layer MLP or not.
