@@ -52,7 +52,7 @@ class MainConfig:
     n_layer: int = 2
 
     # Optimization
-    n_epochs: int = 5000
+    n_epochs: int = 1000
     batch_size: int = 256
     learning_rate: float = 3e-4
 
@@ -137,7 +137,7 @@ def run_grid(
     """
 
     grid = {
-        "pos_dim": range(8, 128),
+        "pos_dim": range(1, 32),
         "n_len": range(4, 32),
         "freeze_pos": [True, False],
         "full_eval": [True],
