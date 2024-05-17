@@ -34,8 +34,9 @@ logging.basicConfig(
     handlers=[logging.StreamHandler()],
 )
 
-exp = 2
+exp = 1
 attention_eval = False
+problems = ["binary-copy", "no-cot", "parity"]
 
 save_dir = SAVE_DIR / f"res-cot-exp{exp}"
 save_dir.mkdir(parents=True, exist_ok=True)
@@ -58,29 +59,23 @@ X = np.arange(4, 32)
 Y = np.arange(8, 128)
 Z = np.arange(0, 5001, 10)
 
+Z1, Z2, Z3, Z4 = {}, {}, {}, {}
 
-Z1_parity = np.full((len(X), len(Y), len(Z)), -1, dtype=float)
-Z2_parity = np.full((len(X), len(Y), len(Z)), -1, dtype=float)
-Z1_nocot = np.full((len(X), len(Y), len(Z)), -1, dtype=float)
-Z2_nocot = np.full((len(X), len(Y), len(Z)), -1, dtype=float)
-Z1_copy = np.full((len(X), len(Y), len(Z)), -1, dtype=float)
-Z2_copy = np.full((len(X), len(Y), len(Z)), -1, dtype=float)
-if attention_eval:
-    Z3_parity = np.full((len(X), len(Y), len(Z)), -1, dtype=float)
-    Z4_parity = np.full((len(X), len(Y), len(Z)), -1, dtype=float)
-    Z3_nocot = np.full((len(X), len(Y), len(Z)), -1, dtype=float)
-    Z4_nocot = np.full((len(X), len(Y), len(Z)), -1, dtype=float)
-    Z3_copy = np.full((len(X), len(Y), len(Z)), -1, dtype=float)
-    Z4_copy = np.full((len(X), len(Y), len(Z)), -1, dtype=float)
+for problem in problems:
+    Z1[problem] = np.full((len(X), len(Y), len(Z)), -1, dtype=float)
+    Z2[problem] = np.full((len(X), len(Y), len(Z)), -1, dtype=float)
+
+    if attention_eval:
+        Z3[problem] = np.full((len(X), len(Y), len(Z)), -1, dtype=float)
+        Z4[problem] = np.full((len(X), len(Y), len(Z)), -1, dtype=float)
 
 
+logger.info("Parsing results.")
 for config in all_configs:
     data_dir = Path(config["data_dir"])
     problem = config["problem"]
     n_len = config["n_len"]
     emb_dim = config["emb_dim"]
-    n_head = config["n_head"]
-    n_layer = config["n_layer"]
     check_dir = Path(config["check_dir"])
 
     try:
@@ -122,48 +117,29 @@ for config in all_configs:
 
     x = np.argmax(X == n_len)
     y = np.argmax(Y == emb_dim)
-    if problem == "parity":
-        Z1_parity[x, y, : len(train_acc)] = train_acc
-        Z2_parity[x, y, : len(test_acc)] = test_acc
+    try:
+        Z1[problem][x, y, : len(train_acc)] = train_acc
+        Z2[problem][x, y, : len(test_acc)] = test_acc
         if attention_eval:
-            Z3_parity[x, y] = res[0]
-            Z4_parity[x, y] = res[1]
-    elif problem == "no-cot":
-        Z1_nocot[x, y, : len(train_acc)] = train_acc
-        Z2_nocot[x, y, : len(test_acc)] = test_acc
-        if attention_eval:
-            Z3_nocot[x, y] = res[0]
-            Z4_nocot[x, y] = res[1]
-    elif problem == "binary-copy":
-        Z1_copy[x, y, : len(train_acc)] = train_acc
-        Z2_copy[x, y, : len(test_acc)] = test_acc
-        if attention_eval:
-            Z3_copy[x, y] = res[0]
-            Z4_copy[x, y] = res[1]
-    else:
+            Z3[problem][x, y] = res[0]
+            Z4[problem][x, y] = res[1]
+    except Exception as e:
+        logger.error(e)
         logger.error("Problem '{problem}' does not match excepted values.")
 
     logger.info(f"done with {problem}, {emb_dim}, {n_len}")
 
 
 logging.info("Saving results.")
-np.save(save_dir / "train_acc_parity.npy", Z1_parity)
-np.save(save_dir / "test_acc_parity.npy", Z2_parity)
-np.save(save_dir / "train_acc_nocot.npy", Z1_nocot)
-np.save(save_dir / "test_acc_nocot.npy", Z2_nocot)
-np.save(save_dir / "train_acc_copy.npy", Z1_copy)
-np.save(save_dir / "test_acc_copy.npy", Z2_copy)
+for problem in problems:
+    np.save(save_dir / f"train_acc_{problem}.npy", Z1[problem])
+    np.save(save_dir / f"test_acc_{problem}.npy", Z2[problem])
+    if attention_eval:
+        np.save(save_dir / f"attn0_{problem}.npy", Z3[problem])
+        np.save(save_dir / f"attn1_{problem}.npy", Z4[problem])
 
-if attention_eval:
-    np.save(save_dir / "attn0_parity.npy", Z3_parity)
-    np.save(save_dir / "attn1_parity.npy", Z4_parity)
-    np.save(save_dir / "attn0_nocot.npy", Z3_nocot)
-    np.save(save_dir / "attn1_nocot.npy", Z4_nocot)
-    np.save(save_dir / "attn0_copy.npy", Z3_copy)
-    np.save(save_dir / "attn1_copy.npy", Z4_copy)
 
 logger.info("Deleting checkpoints.")
-
 for config in all_configs:
     data_dir = Path(config["data_dir"])
     check_dir = Path(config["check_dir"])
@@ -173,7 +149,7 @@ for config in all_configs:
     except Exception as e:
         logger.info(e)
 
-    try:
-        subprocess.run(["rm", "-rf", check_dir])
-    except Exception as e:
-        logger.info(e)
+    # try:
+    #     subprocess.run(["rm", "-rf", check_dir])
+    # except Exception as e:
+    #     logger.info(e)
