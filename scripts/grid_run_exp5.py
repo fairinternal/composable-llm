@@ -6,6 +6,7 @@ To be modified to fit the current framework.
 
 import json
 import logging
+import traceback
 from dataclasses import asdict, dataclass
 from itertools import product
 from uuid import uuid4
@@ -51,7 +52,7 @@ class MainConfig:
     n_layer: int = 2
 
     # Optimization
-    n_epochs: int = 1000
+    n_epochs: int = 5000
     batch_size: int = 256
     learning_rate: float = 3e-4
 
@@ -136,8 +137,10 @@ def run_grid(
     """
 
     grid = {
-        "emb_dim": [32, 64, 128],
-        "n_len": [12, 16, 32],
+        "pos_dim": range(8, 128),
+        "n_len": range(4, 32),
+        "freeze_pos": [True, False],
+        "full_eval": [True],
     }
 
     CHECK_DIR.mkdir(parents=True, exist_ok=True)
@@ -168,6 +171,7 @@ def run_grid(
         except Exception as e:
             logger.warning(f"Error for configuration: {config}.")
             logger.warning(e)
+            logger.warning(traceback.format_exc())
             continue
 
 
