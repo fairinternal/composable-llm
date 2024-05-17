@@ -32,6 +32,8 @@ Longer term implementation TODO:
 - Look into relaunching jobs when they arrive at termination + saving codebase that has launch a run
 - have a better separation between the training loop (a function that takes as inputs some optim parameter, dataset, model and eval class), and how we instanciate it (a change in its arguments, the data, the eval class and so on).
 - deal with error when load_checkpoint=True, but there is no checkpoint.
+- log the path to the stderr file linked with an experiment (get the sbatch %a, %j as an argument to the python script).
+- system to save a screenshot of the code before launching an experiment (clean conda env, and install current version of the code with pip install .).
 
 ## Disorganized thoughts 
 The following is not really well organized, but it gives food for thoughts. We should focus on some meaningful experiments that are insightful beyond our toy setup.
