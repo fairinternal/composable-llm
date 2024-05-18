@@ -486,7 +486,9 @@ def data_processing(
     split_probas=0.5,
     n_data_per_len=2048,
     save_dir=None,
-    **kwargs,
+    data_mix=0.5,
+    mod=5,
+    func=None,
 ):
     """
     Training a Transformer model on a specified problem.
@@ -513,10 +515,10 @@ def data_processing(
             problem = Parity(save_dir=save_dir)
         case "no-cot":
             problem = Parity(cot=False, save_dir=save_dir)
-        case "mix":
-            problem = MixedDataset(save_dir=save_dir, **kwargs)
         case "polynomial":
-            problem = PolynomialEval(save_dir=save_dir, **kwargs)
+            problem = PolynomialEval(save_dir=save_dir, mod=mod, func=func)
+        case "mix":
+            problem = MixedDataset(save_dir=save_dir, data_mix=data_mix)
         case _:
             raise ValueError(f"Problem {problem} not recognized.")
 
