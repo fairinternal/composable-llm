@@ -358,7 +358,7 @@ class Parity(SequenceDataset):
 class Polynomial(SequenceDataset):
     prefix = "polynomial"
 
-    def __init__(self, mod=5, func=None, save_dir=None, cot=True):
+    def __init__(self, mod=11, func=None, save_dir=None, cot=True):
         self.mod = mod
         if func is None:
 

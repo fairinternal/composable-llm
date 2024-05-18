@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 
 torch.manual_seed(100)
 if torch.cuda.is_available():
-    device = torch.device("cuda:0")
+    device = torch.device("cuda")
     torch.cuda.manual_seed_all(0)
 else:
     device = torch.device("cpu")
