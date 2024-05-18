@@ -42,6 +42,7 @@ class MainConfig:
     n_data_per_len: int = 2048
     zipf_offset: int = 0
     zipf_coef: float = 0
+    data_mix: float = 0.5
 
     # Model
     emb_dim: int = 128
@@ -82,9 +83,7 @@ def run_experiment(
 
     Parameters
     ----------
-    data_dir: str
-        Set `data_dir="special", to get a unique saving directory for your data mix.
-    OTHER ARGUMENT TO DETAIL
+    config: Config class
     """
 
     data_processing(
@@ -94,6 +93,7 @@ def run_experiment(
         n_data_per_len=config.n_data_per_len,
         save_dir=config.data_dir,
         cot=config.cot,
+        data_mix=config.data_mix,
     )
 
     train(

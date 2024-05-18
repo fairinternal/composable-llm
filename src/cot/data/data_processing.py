@@ -345,7 +345,8 @@ class Parity(SequenceDataset):
 
         return data
 
-    def get_len(self, seq_len):
+    @classmethod
+    def get_len(cls, seq_len):
         """Full sequence length."""
         return 2 * seq_len + 2
 
