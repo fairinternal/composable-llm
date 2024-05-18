@@ -52,6 +52,7 @@ def train(
     n_head=1,
     n_layer=2,
     n_epochs=1000,
+    sgd=False,
     batch_size=None,
     learning_rate=1e-3,
     checkpoint_freq=100,
@@ -90,6 +91,8 @@ def train(
         Number of layers.
     n_epochs: int
         Total number of training epochs.
+    sgd: bool
+        Wether to use SGD or Adam.
     batch_size: int
         Batch size. Default is full batch.
     learning_rate: float
@@ -170,7 +173,10 @@ def train(
     model = Transformer(config)
     logger.debug(f"Model: {model}.")
 
-    optimizer = optim.Adam(model.parameters(), lr=learning_rate)
+    if sgd:
+        optimizer = optim.SGD(model.parameters(), lr=learning_rate)
+    else:
+        optimizer = optim.Adam(model.parameters(), lr=learning_rate)
 
     logger.info(f"Device used: {device}.")
     model.to(device)

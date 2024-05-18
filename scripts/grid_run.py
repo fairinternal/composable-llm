@@ -1,5 +1,5 @@
 """
-Example of grid run (past code on Vivien side).
+Example of grid run.
 
 To be modified to fit the current framework.
 """
@@ -52,6 +52,7 @@ class MainConfig:
 
     # Optimization
     n_epochs: int = 1000
+    sgd: bool = False
     batch_size: int = 256
     learning_rate: float = 3e-4
 
@@ -106,6 +107,7 @@ def run_experiment(
         n_head=config.n_head,
         n_layer=config.n_layer,
         n_epochs=config.n_epochs,
+        sgd=config.sgd,
         batch_size=config.batch_size,
         learning_rate=config.learning_rate,
         checkpoint_freq=config.checkpoint_freq,
