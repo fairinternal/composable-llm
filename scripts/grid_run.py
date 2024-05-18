@@ -36,6 +36,7 @@ class MainConfig:
     # Data
     data_dir: str = None
     problem: str = "binary-copy"
+    cot: bool = True
     n_len: int = 32
     split_probas: float = 0.5
     n_data_per_len: int = 2048
@@ -92,10 +93,12 @@ def run_experiment(
         split_probas=config.split_probas,
         n_data_per_len=config.n_data_per_len,
         save_dir=config.data_dir,
+        cot=config.cot,
     )
 
     train(
         problem=config.problem,
+        cot=config.cot,
         data_dir=config.data_dir,
         n_len=config.n_len,
         zipf_offset=config.zipf_offset,
@@ -154,7 +157,8 @@ def run_grid(
 
         config = MainConfig(
             check_dir="special",
-            data_dir="special",
+            # data_dir="special",
+            data_dir=CHECK_DIR / "exp",
         )
 
         for k, v in zip(grid.keys(), values):

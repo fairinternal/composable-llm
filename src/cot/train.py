@@ -20,7 +20,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 
 from cot.config import CHECK_DIR, TOKEN_DICT
-from cot.data import BinaryCopy, MixedDataset, Parity
+from cot.data import BinaryCopy, MixedDataset, Parity, Polynomial
 from cot.evals import EvaluationIO
 from cot.evals.cot import AccuracyEval, FullEval
 from cot.models import Transformer, TransformerConfig
@@ -40,7 +40,8 @@ else:
 
 
 def train(
-    problem="binary-copy",
+    problem="polynomial",
+    cot=True,
     data_dir=None,
     n_len=8,
     zipf_offset=0,
@@ -69,6 +70,8 @@ def train(
     ---------
     problem: str
         Problem to be solved. Currently supported are "binary-copy", "parity", and "no-cot".
+    cot: bool
+        Wether to use chain-of-thought or not.
     data_dir: str
         Path to the directory where to save the data.
     n_len: int
@@ -117,11 +120,11 @@ def train(
 
     match problem:
         case "binary-copy":
-            Problem = BinaryCopy
+            Problem = partial(BinaryCopy, cot=cot)
         case "parity":
-            Problem = Parity
-        case "no-cot":
-            Problem = partial(Parity, cot=False)
+            Problem = partial(Parity, cot=cot)
+        case "polynomial":
+            Problem = partial(Polynomial, cot=cot)
         case "mix":
             Problem = MixedDataset
         case _:
@@ -153,7 +156,7 @@ def train(
     # --------------------------------------------------------------------------
 
     config = TransformerConfig(
-        vocab_size=torch.max(trainset.data).item() + 1,
+        vocab_size=64,
         emb_dim=emb_dim,
         pos_emb=True,
         pos_dim=pos_dim,

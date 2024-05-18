@@ -2,6 +2,6 @@ from .data_processing import (
     BinaryCopy,
     MixedDataset,
     Parity,
-    PolynomialEval,
+    Polynomial,
     data_processing,
 )

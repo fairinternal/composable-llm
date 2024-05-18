@@ -42,12 +42,18 @@ class SequenceDataset(Dataset):
 
     prefix = None
 
-    def __init__(self, save_dir=None):
+    def __init__(self, save_dir=None, cot=True):
+        self.cot = cot
+        if not self.cot:
+            self.prefix = "no-cot"
         if save_dir is None:
             save_dir = DATA_DIR
             if self.prefix is not None:
                 save_dir = DATA_DIR / self.prefix
         self.save_dir = save_dir
+
+        tag = {True: " ", False: "not "}[self.cot]
+        logger.info(f"Problem will {tag}use CoT.")
 
     @classmethod
     def generate_fixed_len_data(cls, seq_len, n_data, rng=None):
@@ -58,17 +64,6 @@ class SequenceDataset(Dataset):
     def get_len(cls, seq_len):
         """Full sequence length."""
         raise NotImplementedError
-
-    def change_save_dir(self, save_dir):
-        """
-        Change saving directory.
-
-        Parameters
-        ----------
-        save_dir: str
-            Path of the directory where to save the data.
-        """
-        self.save_dir = save_dir
 
     def generate_datafiles(self, n_data_per_len, split_probas_by_len, rng=None):
         """
@@ -93,6 +88,13 @@ class SequenceDataset(Dataset):
         for seq_len, split_proba in enumerate(split_probas_by_len):
             seq_len += 1
             data = self.generate_fixed_len_data(seq_len=seq_len, n_data=n_data_per_len, rng=rng)
+
+            # without chain of thoughtsa
+            if not self.cot:
+                data[:, seq_len + 2] = data[:, -1]
+                data[:, seq_len + 3 :] = TOKEN_DICT["EoS"]
+
+            # random ordering and splitting
             rng.shuffle(data)
             n_train = int(split_proba * len(data))
             np.save(self.save_dir / f"train_{seq_len}.npy", data[:n_train])
@@ -211,8 +213,8 @@ class SequenceDataset(Dataset):
 class BinaryCopy(SequenceDataset):
     prefix = "binary_copy"
 
-    def __init__(self, save_dir=None):
-        super().__init__(save_dir=save_dir)
+    def __init__(self, save_dir=None, cot=True):
+        super().__init__(save_dir=save_dir, cot=cot)
 
     @classmethod
     def generate_fixed_len_data(cls, seq_len, n_data, rng=None):
@@ -279,16 +281,13 @@ class BinaryCopy(SequenceDataset):
 
 
 class Parity(SequenceDataset):
+    prefix = "parity"
 
-    def __init__(self, cot=True, save_dir=None):
-        self.cot = cot
-        if self.cot:
-            self.prefix = "parity"
-        else:
-            self.prefix = "no_cot"
-        super().__init__(save_dir=save_dir)
+    def __init__(self, save_dir=None, cot=True):
+        super().__init__(save_dir=save_dir, cot=cot)
 
-    def generate_fixed_len_data(self, seq_len, n_data, rng=None):
+    @classmethod
+    def generate_fixed_len_data(cls, seq_len, n_data, rng=None):
         """
         Generate parity data with fixed sequence length.
 
@@ -319,7 +318,7 @@ class Parity(SequenceDataset):
         # allocate memory
         if 2**seq_len < n_data:
             n_data = 2**seq_len
-        length = self.get_len(seq_len)
+        length = cls.get_len(seq_len)
         data = np.empty((n_data, length), dtype=np.int32)
 
         # input data
@@ -331,18 +330,14 @@ class Parity(SequenceDataset):
         else:
             data[:, 1 : seq_len + 1] = (rng.random((n_data, seq_len)) > 0.5).astype(np.int32)
 
-        if self.cot:
-            # CoT data
-            data[:, seq_len + 2 :] = np.cumsum(data[:, 1 : seq_len + 1], axis=1) % 2
-        else:
-            data[:, seq_len + 2] = np.sum(data[:, 1 : seq_len + 1], axis=1) % 2
-            data[:, seq_len + 3 :] = TOKEN_DICT["EoS"]
+        # CoT data
+        data[:, seq_len + 2 :] = np.cumsum(data[:, 1 : seq_len + 1], axis=1) % 2
 
         # add spectial token at begining of sentence
-        if self.prefix in TOKEN_DICT:
-            data[:, 0] = TOKEN_DICT[self.prefix]
+        if cls.prefix in TOKEN_DICT:
+            data[:, 0] = TOKEN_DICT[cls.prefix]
         else:
-            logger.info(f"Prefix {self.prefix} not in TOKEN_DICT, falling back to generic BoS.")
+            logger.info(f"Prefix {cls.prefix} not in TOKEN_DICT, falling back to generic BoS.")
             data[:, 0] = TOKEN_DICT["BoS"]
 
         # end of input
@@ -360,18 +355,19 @@ class Parity(SequenceDataset):
 # -----------------------------------------------------------------------------
 
 
-class PolynomialEval(SequenceDataset):
+class Polynomial(SequenceDataset):
     prefix = "polynomial"
 
-    def __init__(self, mod=5, func=None, save_dir=None):
+    def __init__(self, mod=5, func=None, save_dir=None, cot=True):
         self.mod = mod
         if func is None:
 
+            # polynomial iteration based on this function is not permutation invariant
             def func(x, y):
-                return x * y
+                return x * y + 1
 
         self.func = func
-        super().__init__(save_dir=save_dir)
+        super().__init__(save_dir=save_dir, cot=cot)
 
     def generate_fixed_len_data(self, seq_len, n_data, rng=None):
         """
@@ -436,10 +432,10 @@ class PolynomialEval(SequenceDataset):
 class MixedDataset(SequenceDataset):
     prefix = "mix"
 
-    def __init__(self, data_mix=0.5, save_dir=None):
+    def __init__(self, data_mix=0.5, save_dir=None, cot=True):
         self.data_mix = data_mix
-        self.binary = BinaryCopy()
-        self.parity = Parity()
+        self.binary = BinaryCopy(cot=cot)
+        self.parity = Parity(cot=cot)
         super().__init__(save_dir=save_dir)
 
     def generate_fixed_len_data(self, seq_len, n_data, rng=None):
@@ -486,6 +482,7 @@ def data_processing(
     split_probas=0.5,
     n_data_per_len=2048,
     save_dir=None,
+    cot=True,
     **kwargs,
 ):
     """
@@ -503,20 +500,20 @@ def data_processing(
         Maximum number of data to generate for a given length.
     save_dir: str
         Path of the directory where to save the data.
+    cot: bool
+        Wether to use chain-of-thought.
     kwargs: keyword arguments
         Arugment specific to each problem.
     """
     match problem:
         case "binary-copy":
-            problem = BinaryCopy(save_dir=save_dir)
+            problem = BinaryCopy(save_dir=save_dir, cot=cot)
         case "parity":
-            problem = Parity(save_dir=save_dir)
-        case "no-cot":
-            problem = Parity(cot=False, save_dir=save_dir)
+            problem = Parity(save_dir=save_dir, cot=cot)
         case "polynomial":
-            problem = PolynomialEval(save_dir=save_dir, **kwargs)
+            problem = Polynomial(save_dir=save_dir, cot=cot, **kwargs)
         case "mix":
-            problem = MixedDataset(save_dir=save_dir, **kwargs)
+            problem = MixedDataset(save_dir=save_dir, cot=cot, **kwargs)
         case _:
             raise ValueError(f"Problem {problem} not recognized.")
 

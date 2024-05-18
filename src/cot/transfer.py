@@ -18,7 +18,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 
 from cot.config import CHECK_DIR, TOKEN_DICT
-from cot.data import Parity
+from cot.data import BinaryCopy, MixedDataset, Parity, Polynomial
 from cot.evals import EvaluationIO
 from cot.evals.cot import AccuracyEval, FullEval
 from cot.models import Transformer, TransformerConfig
@@ -39,6 +39,7 @@ else:
 
 def transfer(
     load_path,
+    problem="parity",
     finetune_mlp2=False,
     data_dir=None,
     n_len=8,
@@ -59,6 +60,8 @@ def transfer(
     ---------
     load_path: str
         Path of the model to load before starting finetuning.
+    problem: str
+        Problem identifier
     finetune_mlp2: bool
         Wether to only finetune the second layer MLP or not.
     data_dir: str
@@ -89,7 +92,17 @@ def transfer(
     # Data
     # -----------------------------------------------------------------------------
 
-    Problem = Parity
+    match problem:
+        case "binary-copy":
+            Problem = BinaryCopy
+        case "parity":
+            Problem = Parity
+        case "polynomial":
+            Problem = Polynomial
+        case "mix":
+            Problem = MixedDataset
+        case _:
+            raise ValueError(f"Problem {problem} not recognized.")
 
     # hyperparameters
     lengths = list(np.arange(n_len) + 1)
@@ -117,7 +130,7 @@ def transfer(
     # --------------------------------------------------------------------------
 
     config = TransformerConfig(
-        vocab_size=6,
+        vocab_size=64,
         emb_dim=128,
         seq_len=len(trainset[0]),
         emb_dropout=emb_dropout,
