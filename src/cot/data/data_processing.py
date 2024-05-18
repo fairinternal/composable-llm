@@ -252,10 +252,6 @@ class BinaryCopy(SequenceDataset):
         # ... non-exhaustive case
         else:
             data[:, 1 : seq_len + 1] = (rng.random((n_data, seq_len)) > 0.5).astype(np.int32)
-        ind_neg = data == 0
-        ind_pos = data == 1
-        data[ind_neg] = TOKEN_DICT[0]
-        data[ind_pos] = TOKEN_DICT[1]
 
         # add spectial token at begining of sentence
         if cls.prefix in TOKEN_DICT:
@@ -340,13 +336,7 @@ class Parity(SequenceDataset):
             data[:, seq_len + 2 :] = np.cumsum(data[:, 1 : seq_len + 1], axis=1) % 2
         else:
             data[:, seq_len + 2] = np.sum(data[:, 1 : seq_len + 1], axis=1) % 2
-            assert TOKEN_DICT["EoS"] not in [0, 1]
             data[:, seq_len + 3 :] = TOKEN_DICT["EoS"]
-
-        ind_neg = data == 0
-        ind_pos = data == 1
-        data[ind_neg] = TOKEN_DICT[0]
-        data[ind_pos] = TOKEN_DICT[1]
 
         # add spectial token at begining of sentence
         if self.prefix in TOKEN_DICT:
@@ -361,6 +351,79 @@ class Parity(SequenceDataset):
         return data
 
     def get_len(self, seq_len):
+        """Full sequence length."""
+        return 2 * seq_len + 2
+
+
+# -----------------------------------------------------------------------------
+# Polynomial Evaluation
+# -----------------------------------------------------------------------------
+
+
+class PolynomialEval(SequenceDataset):
+    prefix = "polynomial"
+
+    def __init__(self, mod=5, func=None, save_dir=None):
+        self.mod = mod
+        if func is None:
+
+            def func(x, y):
+                return x * y
+
+        self.func = func
+        super().__init__(save_dir=save_dir)
+
+    def generate_fixed_len_data(self, seq_len, n_data, rng=None):
+        """
+        Generate copy data with fixed sequence length.
+
+        Parameters
+        ----------
+        seq_len : int
+            Length of the sequence.
+        n_data : int
+            Number of data points to generate.
+            Will be reduced to 2**seq_len if greater.
+        rng : numpy.random.Generator, optional
+            Random number generator. If None, use the default generator.
+            Used if n_data is too small compared to all the potential sequences.
+
+        Returns
+        -------
+        data: numpy.ndarray
+            Generated data containing sequence of tokens specified by TOKEN_DICT.
+        """
+        if rng is None:
+            rng = np.random.default_rng()
+
+        # allocate memory
+        length = self.get_len(seq_len)
+        data = np.empty((n_data, length), dtype=np.int32)
+
+        # input data
+        # ... non-exhaustive case
+        data[:, 1 : seq_len + 1] = rng.integers(1, self.mod, size=(n_data, seq_len), dtype=np.int32)
+
+        # add spectial token at begining of sentence
+        if self.prefix in TOKEN_DICT:
+            data[:, 0] = TOKEN_DICT[self.prefix]
+        else:
+            logger.info(f"Prefix {self.prefix} not in TOKEN_DICT, falling back to generic BoS.")
+            data[:, 0] = TOKEN_DICT["BoS"]
+
+        # end of input
+        data[:, seq_len + 1] = TOKEN_DICT["EoI"]
+
+        # compute the sum
+        data[:, seq_len + 2 :] = data[:, 1 : seq_len + 1]
+        for t in range(1, seq_len):
+            data[:, seq_len + 2 + t] = self.func(data[:, seq_len + 2 + t - 1], data[:, seq_len + 2 + t])
+            data[:, seq_len + 2 + t] %= self.mod
+
+        return data
+
+    @classmethod
+    def get_len(cls, seq_len):
         """Full sequence length."""
         return 2 * seq_len + 2
 
@@ -423,7 +486,7 @@ def data_processing(
     split_probas=0.5,
     n_data_per_len=2048,
     save_dir=None,
-    data_mix=0.5,
+    **kwargs,
 ):
     """
     Training a Transformer model on a specified problem.
@@ -440,8 +503,8 @@ def data_processing(
         Maximum number of data to generate for a given length.
     save_dir: str
         Path of the directory where to save the data.
-    data_mix: float
-        Percentage of copy vs parity data when mixing data.
+    kwargs: keyword arguments
+        Arugment specific to each problem.
     """
     match problem:
         case "binary-copy":
@@ -451,7 +514,9 @@ def data_processing(
         case "no-cot":
             problem = Parity(cot=False, save_dir=save_dir)
         case "mix":
-            problem = MixedDataset(data_mix=data_mix, save_dir=save_dir)
+            problem = MixedDataset(save_dir=save_dir, **kwargs)
+        case "polynomial":
+            problem = PolynomialEval(save_dir=save_dir, **kwargs)
         case _:
             raise ValueError(f"Problem {problem} not recognized.")
 
