@@ -149,7 +149,7 @@ for config in all_configs:
     except Exception as e:
         logger.info(e)
 
-    # try:
-    #     subprocess.run(["rm", "-rf", check_dir])
-    # except Exception as e:
-    #     logger.info(e)
+    try:
+        subprocess.run(["rm", "-rf", check_dir])
+    except Exception as e:
+        logger.info(e)
