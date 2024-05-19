@@ -41,17 +41,18 @@ def train(
     problem="binary-copy",
     cot=True,
     data_dir=None,
-    n_len=8,
+    n_len=16,
     emb_dim=128,
-    emb_dropout=0.1,
     pos_dim=None,
     freeze_pos=False,
     n_head=1,
     n_layer=2,
     n_epochs=1000,
     sgd=False,
-    batch_size=None,
-    learning_rate=1e-3,
+    batch_size=256,
+    learning_rate=3e-4,
+    emb_dropout=0.1,
+    checkpoint=False,
     checkpoint_freq=100,
     overwrite_checkpoint=True,
     load_checkpoint=False,
@@ -72,14 +73,8 @@ def train(
         Path to the directory where to save the data.
     n_len: int
         Maximum number of lenghts for sequences.
-    zipf_offset: float
-        Index offset to the Zipf law generating sentence lengths.
-    zipf_coef: float
-        Decaying coefficient to the Zipf law generating sentence lengths.
     emb_dim: int
         Embedding dimension size.
-    emb_dropout: float
-        Dropout rate for the embeddings.
     pos_dim: int
         Dimension of the positional embedding. Default is `emb_dim`.
     freeze_pos: bool
@@ -96,6 +91,10 @@ def train(
         Batch size. Default is full batch.
     learning_rate: float
         Learning rate.
+    emb_dropout: float
+        Dropout rate for the embeddings.
+    checkpoint: bool
+        Wether to checkpoint the model or not.
     checkpoint_freq: int
         Checkpoint saving frequency.
     overwrite_checkpoint: bool
@@ -216,7 +215,7 @@ def train(
     eval_path = check_dir / "eval.csv"
     report_eval = EvaluationIO(
         eval_path,
-        [f"{stri}_train" for stri in evaluator.meaning] + [f"{stri}_test" for stri in evaluator.meaning],
+        meaning=[f"{stri}_train" for stri in evaluator.meaning] + [f"{stri}_test" for stri in evaluator.meaning],
     )
 
     # --------------------------------------------------------------------------
@@ -250,7 +249,7 @@ def train(
             with torch.no_grad():
                 running_loss += loss.item()
 
-        losses[epoch] = running_loss
+        losses[epoch] = running_loss * (batch_size / len(trainset))
         epoch = epoch + 1
         logger.info(f"Epoch {epoch:5d}, Loss: {running_loss:.4f}")
 
@@ -264,7 +263,7 @@ def train(
             logger.info(f"Epoch {epoch:5d}, Accuracy: {accuracy:.4f}, {test_accuracy:.4f}")
 
         # checkpointing
-        if not epoch % checkpoint_freq or epoch == n_epochs:
+        if checkpoint and (not epoch % checkpoint_freq or epoch == n_epochs):
             if overwrite_checkpoint:
                 path = check_dir / "model.pth"
             else:
