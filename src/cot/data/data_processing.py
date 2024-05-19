@@ -359,7 +359,7 @@ class Parity(SequenceDataset):
 class Polynomial(SequenceDataset):
     prefix = "polynomial"
 
-    def __init__(self, mod=11, func=None, save_dir=None, cot=True):
+    def __init__(self, mod=11, func=None, save_dir=None, cot=True, **kwargs):
         self.mod = mod
         if func is None:
 
@@ -433,7 +433,7 @@ class Polynomial(SequenceDataset):
 class MixedDataset(SequenceDataset):
     prefix = "mix"
 
-    def __init__(self, data_mix=0.5, save_dir=None, cot=True):
+    def __init__(self, data_mix=0.5, save_dir=None, cot=True, **kwargs):
         self.data_mix = data_mix
         self.binary = BinaryCopy(cot=cot)
         self.parity = Parity(cot=cot)

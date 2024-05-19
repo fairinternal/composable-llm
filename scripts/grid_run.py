@@ -6,6 +6,7 @@ To be modified to fit the current framework.
 
 import json
 import logging
+import traceback
 from dataclasses import asdict, dataclass
 from itertools import product
 from uuid import uuid4
@@ -170,6 +171,7 @@ def run_grid(
             run_experiment(config)
         except Exception as e:
             logger.warning(f"Error for configuration: {config}.")
+            logger.warning(traceback.format_exc())
             logger.warning(e)
             continue
 
