@@ -227,19 +227,11 @@ class BinaryCopy(SequenceDataset):
             rng = np.random.default_rng()
 
         # allocate memory
-        if 2**seq_len < n_data:
-            n_data = 2**seq_len
         length = cls.get_len(seq_len)
         data = np.empty((n_data, length), dtype=np.int32)
 
         # input data
-        # ... exhaustive case
-        if 2**seq_len == n_data:
-            powers_of_two = 2 ** np.arange(seq_len)[::-1]
-            data[:, 1 : seq_len + 1] = (np.arange(n_data).reshape(-1, 1) & powers_of_two != 0).astype(np.int32)
-        # ... non-exhaustive case
-        else:
-            data[:, 1 : seq_len + 1] = (rng.random((n_data, seq_len)) > 0.5).astype(np.int32)
+        data[:, 1 : seq_len + 1] = (rng.random((n_data, seq_len)) > 0.5).astype(np.int32)
 
         # add spectial token at begining of sentence
         if cls.prefix in TOKEN_DICT:
@@ -297,19 +289,17 @@ class Parity(SequenceDataset):
             rng = np.random.default_rng()
 
         # allocate memory
-        if 2**seq_len < n_data:
-            n_data = 2**seq_len
+        # if 2**seq_len < n_data:
+        #     n_data = 2**seq_len
         length = cls.get_len(seq_len)
         data = np.empty((n_data, length), dtype=np.int32)
 
         # input data
-        # ... exhaustive case
-        if 2**seq_len == n_data:
-            powers_of_two = 2 ** np.arange(seq_len)[::-1]
-            data[:, 1 : seq_len + 1] = (np.arange(n_data).reshape(-1, 1) & powers_of_two != 0).astype(np.int32)
+        # # ... exhaustive case
+        # powers_of_two = 2 ** np.arange(seq_len)[::-1]
+        # data[:, 1 : seq_len + 1] = (np.arange(n_data).reshape(-1, 1) & powers_of_two != 0).astype(np.int32)
         # ... non-exhaustive case
-        else:
-            data[:, 1 : seq_len + 1] = (rng.random((n_data, seq_len)) > 0.5).astype(np.int32)
+        data[:, 1 : seq_len + 1] = (rng.random((n_data, seq_len)) > 0.5).astype(np.int32)
 
         # CoT data
         data[:, seq_len + 2 :] = np.cumsum(data[:, 1 : seq_len + 1], axis=1) % 2
@@ -445,7 +435,7 @@ class MixedDataset(SequenceDataset):
 
 def data_processing(
     problem="binary-copy",
-    n_len=8,
+    n_len=32,
     split_probas=0.5,
     n_datas=2048,
     save_dir=None,
