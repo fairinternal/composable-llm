@@ -11,12 +11,10 @@ from dataclasses import asdict, dataclass
 from itertools import product
 from uuid import uuid4
 
-import torch
-
 from cot.config import CHECK_DIR, DATA_DIR
 from cot.data import data_processing
 from cot.train import train
-from cot.utils import JsonEncoder
+from cot.utils import JsonEncoder, set_torch_seed
 
 logger = logging.getLogger(__name__)
 
@@ -24,9 +22,7 @@ logger = logging.getLogger(__name__)
 # Reproducibility
 # -----------------------------------------------------------------------------
 
-torch.manual_seed(100)
-if torch.cuda.is_available():
-    torch.cuda.manual_seed_all(0)
+set_torch_seed(0)
 
 
 @dataclass
@@ -166,6 +162,8 @@ def run_grid(
         with open(CHECK_DIR / f"{config_filename}.jsonl", "a") as f:
             json.dump(config_dict, f, cls=JsonEncoder, indent=4)
             f.write("\n")
+
+        logger.info(f"{config=}")
 
         try:
             run_experiment(config)

@@ -28,13 +28,11 @@ from cot.models import Transformer, TransformerConfig
 logger = logging.getLogger(__name__)
 
 # -----------------------------------------------------------------------------
-# Reproducibility and Device
+# Device
 # -----------------------------------------------------------------------------
 
-torch.manual_seed(100)
 if torch.cuda.is_available():
     device = torch.device("cuda")
-    torch.cuda.manual_seed_all(0)
 else:
     device = torch.device("cpu")
 
