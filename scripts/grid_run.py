@@ -136,14 +136,14 @@ def run_experiment(
         )
 
 
-def get_unique_data(config, seeds):
+def get_unique_data(config, run_ids):
     data_dirs = {}
-    for seed in seeds:
+    for run_id in run_ids:
         unique_id = str(uuid4())
         data_dir = DATA_DIR / unique_id
         setattr(config, "data_dir", data_dir)
         run_experiment(config, run_data=True, run_train=False)
-        data_dirs[seed] = config.data_dir
+        data_dirs[run_id] = config.data_dir
     return data_dirs
 
 
@@ -191,7 +191,7 @@ def run_grid(
         for k, v in zip(grid.keys(), values):
             setattr(config, k, v)
 
-        setattr(config, "data_dir", data_dirs[config["seed"]])
+        setattr(config, "data_dir", data_dirs[config.run_id])
 
         config_dict = asdict(config)
         with open(CHECK_DIR / f"{config_filename}.jsonl", "a") as f:
