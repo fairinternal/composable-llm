@@ -38,7 +38,7 @@ else:
 
 
 def train(
-    problem="polynomial",
+    problem="binary-copy",
     cot=True,
     data_dir=None,
     n_len=8,
@@ -160,10 +160,6 @@ def train(
 
     losses = np.empty(n_epochs)
 
-    if check_dir is None:
-        check_dir = CHECK_DIR / trainset.prefix
-    check_dir.mkdir(parents=True, exist_ok=True)
-
     model = Transformer(config)
     logger.debug(f"Model: {model}.")
 
@@ -174,6 +170,14 @@ def train(
 
     logger.info(f"Device used: {device}.")
     model.to(device)
+
+    # --------------------------------------------------------------------------
+    # Checkpoint
+    # --------------------------------------------------------------------------
+
+    if check_dir is None:
+        check_dir = CHECK_DIR / trainset.prefix
+    check_dir.mkdir(parents=True, exist_ok=True)
 
     if load_checkpoint:
         path = check_dir / "model.pth"
@@ -209,16 +213,11 @@ def train(
         model.train()
         return torch.hstack((train_evals, test_evals))
 
-    if load_checkpoint:
-        n_evals = (n_epochs - epoch) // eval_freq + 1
-        report_eval = EvaluationIO(
-            n_evals, 2 * eval_dim, past_evals=checkpoint["evals"], past_timestamps=checkpoint["timestamps"]
-        )
-    else:
-        n_evals = n_epochs // eval_freq + 1
-        report_eval = EvaluationIO(n_evals, 2 * eval_dim)
-        evals = eval(model)
-        report_eval(epoch, evals)
+    eval_path = check_dir / "eval.csv"
+    report_eval = EvaluationIO(
+        eval_path,
+        [f"{stri}_train" for stri in evaluator.meaning] + [f"{stri}_test" for stri in evaluator.meaning],
+    )
 
     # --------------------------------------------------------------------------
     # Training loop
@@ -277,9 +276,6 @@ def train(
                     "model_state_dict": model.state_dict(),
                     "optimizer_state_dict": optimizer.state_dict(),
                     "losses": losses,
-                    "evals": report_eval.evals,
-                    "timestamps": report_eval.timestamps,
-                    "meaning": evaluator.meaning,
                 },
                 path,
             )
