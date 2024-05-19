@@ -12,7 +12,7 @@ in the root directory of this source tree.
 
 class EvaluationIO:
 
-    def __init__(self, file_path, overwrite=False, meaning=None):
+    def __init__(self, file_path, meaning=None, overwrite=False):
         """
         I/O object to save evalutions.
 

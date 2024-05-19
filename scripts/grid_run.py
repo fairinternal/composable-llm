@@ -27,20 +27,22 @@ set_torch_seed(0)
 
 @dataclass
 class MainConfig:
-    # Data
-    data_dir: str = None
+    # Problem
     problem: str = "binary-copy"
     cot: bool = True
+
+    # Data
+    data_dir: str = None
     n_len: int = 32
     split_probas: float = 0.5
     n_data_per_len: int = 2048
-    zipf_offset: int = 0
-    zipf_coef: float = 0
+
+    # Extra data options
     data_mix: float = 0.5
+    mod: int = 5
 
     # Model
     emb_dim: int = 128
-    emb_dropout: float = 0.1
     pos_dim: int = None
     freeze_pos: bool = False
     n_head: int = 1
@@ -52,13 +54,22 @@ class MainConfig:
     batch_size: int = 256
     learning_rate: float = 3e-4
 
+    # Extra optimization option
+    emb_dropout: float = 0.1
+
     # Checkpointing
+    checkpoint: bool = False
     checkpoint_freq: int = 100
     overwrite_checkpoint: bool = True
     load_checkpoint: bool = False
     check_dir: str = None
-    full_eval: bool = False
+
+    # Evaluation
+    full_eval: bool = True
     eval_freq: int = 10
+
+    # Run id
+    run_id: int = 0
 
     def __post_init__(self):
         self.unique_id = str(uuid4())
@@ -88,6 +99,7 @@ def run_experiment(
         save_dir=config.data_dir,
         cot=config.cot,
         data_mix=config.data_mix,
+        mod=config.mod,
     )
 
     train(
@@ -95,10 +107,7 @@ def run_experiment(
         cot=config.cot,
         data_dir=config.data_dir,
         n_len=config.n_len,
-        zipf_offset=config.zipf_offset,
-        zipf_coef=config.zipf_coef,
         emb_dim=config.emb_dim,
-        emb_dropout=config.emb_dropout,
         pos_dim=config.pos_dim,
         freeze_pos=config.freeze_pos,
         n_head=config.n_head,
@@ -107,6 +116,8 @@ def run_experiment(
         sgd=config.sgd,
         batch_size=config.batch_size,
         learning_rate=config.learning_rate,
+        emb_dropout=config.emb_dropout,
+        checkpoint=config.checkpoint,
         checkpoint_freq=config.checkpoint_freq,
         overwrite_checkpoint=config.overwrite_checkpoint,
         load_checkpoint=config.load_checkpoint,
