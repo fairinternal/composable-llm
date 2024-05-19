@@ -13,7 +13,7 @@ import logging
 
 import numpy as np
 import torch
-from torch.utils.data import Dataset, WeightedRandomSampler
+from torch.utils.data import Dataset
 
 from cot.config import DATA_DIR, RNG, TOKEN_DICT
 
@@ -45,7 +45,9 @@ class SequenceDataset(Dataset):
     def __init__(self, save_dir=None, cot=True):
         self.cot = cot
         if not self.cot:
-            self.prefix = "no-cot"
+            assert self.prefix is not None
+            self.prefix = self.prefix + "-no-cot"
+
         if save_dir is None:
             save_dir = DATA_DIR
             if self.prefix is not None:
@@ -56,13 +58,13 @@ class SequenceDataset(Dataset):
         logger.info(f"Problem will {tag}use CoT.")
 
     @classmethod
-    def generate_fixed_len_data(cls, seq_len, n_data, rng=None):
-        """Generate sequence with fixed sequence length."""
-        raise NotImplementedError
-
-    @classmethod
     def get_len(cls, seq_len):
         """Full sequence length."""
+        return 2 * seq_len + 2
+
+    @classmethod
+    def generate_fixed_len_data(cls, seq_len, n_data, rng=None):
+        """Generate sequence with fixed sequence length."""
         raise NotImplementedError
 
     def generate_datafiles(self, n_data_per_len, split_probas_by_len, rng=None):
@@ -71,9 +73,9 @@ class SequenceDataset(Dataset):
 
         Parameters
         ----------
-        n_data_per_len : int
+        n_data_per_len : int, or list of int
             Maximum number of data points to generate for each sequence length.
-        split_probas_by_len : list of float
+        split_probas_by_len : float or list of float
             Proportion of data to put in the training set for each sequence length.
         rng : numpy.random.Generator, optional
             Random number generator. If None, use the default generator.
@@ -84,10 +86,21 @@ class SequenceDataset(Dataset):
         if rng is None:
             rng = np.random.default_rng()
 
+        assert isinstance(n_data_per_len, list) or isinstance(split_probas_by_len, list)
+
+        if not isinstance(n_data_per_len, list):
+            n_data_per_len = [n_data_per_len for _ in split_probas_by_len]
+
+        if not isinstance(split_probas_by_len, list):
+            split_probas_by_len = [split_probas_by_len for _ in n_data_per_len]
+
         self.save_dir.mkdir(parents=True, exist_ok=True)
-        for seq_len, split_proba in enumerate(split_probas_by_len):
+        for seq_len, (n_data, split_proba) in enumerate(zip(n_data_per_len, split_probas_by_len)):
+            if n_data == 0:
+                continue
+
             seq_len += 1
-            data = self.generate_fixed_len_data(seq_len=seq_len, n_data=n_data_per_len, rng=rng)
+            data = self.generate_fixed_len_data(seq_len=seq_len, n_data=n_data, rng=rng)
 
             # without chain of thoughtsa
             if not self.cot:
@@ -149,7 +162,7 @@ class SequenceDataset(Dataset):
                 self.save_dir / f"{data_type}_{seq_len}.npy"
             )
 
-        return data, indices
+        return data
 
     def set_data(self, lengths, data_type):
         """
@@ -168,35 +181,8 @@ class SequenceDataset(Dataset):
         -----
         Should be called after `generate_datafiles`.
         """
-        data, indices = self.load_data(lengths, data_type=data_type)
+        data = self.load_data(lengths, data_type=data_type)
         self.data = torch.from_numpy(data)
-        self.indices = torch.from_numpy(indices)
-
-    def get_sampler_by_len(self, probas_by_len):
-        """
-        Set the probability of each data point.
-
-        Endows `self` with attributes `proba_by_data`.
-
-        Parameters
-        ----------
-        probas_by_len : list of numpy.ndarray
-            Probability vector to sample of sequence of a given length.
-
-        Notes
-        -----
-        Should be called after `set_train_data`.
-        """
-
-        assert abs(sum(probas_by_len) - 1) < 1e-6, "The sum of the probabilities must be equal to 1."
-
-        probas = torch.empty(self.indices[-1])
-        for i in range(len(probas_by_len)):
-            start, end = self.indices[i], self.indices[i + 1]
-            if start != end:
-                probas[start:end] = probas_by_len[i] / (end - start)
-
-        return WeightedRandomSampler(probas, len(self.data))
 
     def __len__(self):
         return len(self.data)
@@ -269,11 +255,6 @@ class BinaryCopy(SequenceDataset):
         data[:, seq_len + 2 :] = data[:, 1 : seq_len + 1]
         return data
 
-    @classmethod
-    def get_len(cls, seq_len):
-        """Full sequence length."""
-        return 2 * seq_len + 2
-
 
 # -----------------------------------------------------------------------------
 # Parity problem
@@ -345,11 +326,6 @@ class Parity(SequenceDataset):
 
         return data
 
-    @classmethod
-    def get_len(cls, seq_len):
-        """Full sequence length."""
-        return 2 * seq_len + 2
-
 
 # -----------------------------------------------------------------------------
 # Polynomial Evaluation
@@ -419,11 +395,6 @@ class Polynomial(SequenceDataset):
 
         return data
 
-    @classmethod
-    def get_len(cls, seq_len):
-        """Full sequence length."""
-        return 2 * seq_len + 2
-
 
 # -----------------------------------------------------------------------------
 # Mixed data
@@ -465,11 +436,6 @@ class MixedDataset(SequenceDataset):
 
         data = np.vstack((data_binary, data_parity))
         return data
-
-    @classmethod
-    def get_len(cls, seq_len):
-        """Full sequence length."""
-        return 2 * seq_len + 2
 
 
 # -----------------------------------------------------------------------------

@@ -42,8 +42,6 @@ def train(
     cot=True,
     data_dir=None,
     n_len=8,
-    zipf_offset=0,
-    zipf_coef=0,
     emb_dim=128,
     emb_dropout=0.1,
     pos_dim=None,
@@ -141,12 +139,7 @@ def train(
         batch_size = len(trainset)
         logger.info("No batch size specified. Using gradient descent (full batch).")
 
-    # non-uniform sampler
-    probas_by_len = (np.arange(len(lengths), dtype=float) + zipf_offset) ** (-zipf_coef)
-    probas_by_len /= probas_by_len.sum()
-    sampler = trainset.get_sampler_by_len(probas_by_len)
-
-    loader = DataLoader(trainset, batch_size=batch_size, sampler=sampler)
+    loader = DataLoader(trainset, batch_size=batch_size)
     logger.info(f"Problem: {trainset.prefix}. Number of training data: {len(trainset)}.")
 
     # --------------------------------------------------------------------------
@@ -181,7 +174,6 @@ def train(
 
     logger.info(f"Device used: {device}.")
     model.to(device)
-    probas_by_len = torch.from_numpy(probas_by_len).to(device=device)
 
     if load_checkpoint:
         path = check_dir / "model.pth"
@@ -268,8 +260,8 @@ def train(
             evals = eval(model)
             report_eval(epoch, evals)
 
-            accuracy = (evals[0 : len(lengths)] * probas_by_len).sum().item()
-            test_accuracy = (evals[eval_dim : eval_dim + len(lengths)] * probas_by_len).sum().item()
+            accuracy = evals[0 : len(lengths)].mean().item()
+            test_accuracy = evals[eval_dim : eval_dim + len(lengths)].mean().item()
             logger.info(f"Epoch {epoch:5d}, Accuracy: {accuracy:.4f}, {test_accuracy:.4f}")
 
         # checkpointing
