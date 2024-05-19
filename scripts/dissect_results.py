@@ -15,7 +15,6 @@ import subprocess
 from pathlib import Path
 
 import numpy as np
-import torch
 
 from cot.config import (
     CHECK_DIR,
@@ -24,6 +23,7 @@ from cot.config import (
     logging_format,
     logging_level,
 )
+from cot.evals import EvaluationIO
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(
@@ -35,8 +35,8 @@ logging.basicConfig(
 )
 
 exp = 1
-attention_eval = False
-problems = ["binary-copy", "no-cot", "parity"]
+attention_eval = True
+problems = ["polynomial", "polynomial-no-cot", "parity", "parity-no-cot"]
 
 save_dir = SAVE_DIR / f"res-cot-exp{exp}"
 save_dir.mkdir(parents=True, exist_ok=True)
@@ -56,8 +56,8 @@ with open(CHECK_DIR / f"exp{exp}.jsonl", "r") as f:
 
 
 X = np.arange(4, 32)
-Y = np.arange(8, 128)
-Z = np.arange(0, 5001, 10)
+Y = np.arange(4, 64)
+Z = np.arange(0, 1001, 10)
 
 Z1, Z2, Z3, Z4 = {}, {}, {}, {}
 
@@ -74,40 +74,39 @@ logger.info("Parsing results.")
 for config in all_configs:
     data_dir = Path(config["data_dir"])
     problem = config["problem"]
+    problem = problem + ("" if config["cot"] else "-no-cot")
     n_len = config["n_len"]
     emb_dim = config["emb_dim"]
     check_dir = Path(config["check_dir"])
 
+    meaning, data = EvaluationIO.load_eval(check_dir / "eval.csv")
+
     try:
-        checkpoint = torch.load(check_dir / "model.pth")
+        meaning, data = EvaluationIO.load_eval(check_dir / "eval.csv")
     except Exception as e:
         logger.warning(e)
         logger.warning("Problem with", problem, emb_dim, n_len)
         continue
 
-    timestamps = checkpoint["timestamps"]
-    ind = timestamps != -1
-    timestamps = timestamps[ind]
+    timestamps = data[:, 0]
+    eval_dim = (data.shape[1] - 1) // 2
+    nd_meaning = np.array([stri[:-6] for stri in meaning[1 : 1 + eval_dim]])
 
-    meaning = checkpoint["meaning"]
-    evals = checkpoint["evals"][ind]
-
-    eval_dim = evals.shape[1] // 2
-    train_evals = evals[:, :eval_dim]
-    test_evals = evals[:, eval_dim:]
+    train_evals = data[:, 1 : 1 + eval_dim]
+    test_evals = data[:, 1 + eval_dim :]
 
     min_len = 4
     train_acc = train_evals[:, min_len - 1 : n_len].mean(axis=1)
     test_acc = test_evals[:, min_len - 1 : n_len].mean(axis=1)
 
-    nd_meaning = np.array(meaning)
     if attention_eval:
         res = np.empty((2, n_len + 1 - min_len), dtype=float)
         for i, eval_prefix in enumerate(["attn0_peaky_thres", "attn1_peaky_thres"]):
             for j, length in enumerate(range(min_len, n_len + 1)):
                 eval_name = f"{eval_prefix}_{length}"
 
-                ind = np.argmax(np.array(meaning) == eval_name)
+                ind = np.argmax(nd_meaning == eval_name)
+                assert ind != 0
 
                 train_res = train_evals[-1, ind]
                 test_res = test_evals[-1, ind]
