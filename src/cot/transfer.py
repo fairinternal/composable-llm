@@ -45,6 +45,7 @@ def transfer(
     n_epochs=1000,
     batch_size=None,
     learning_rate=1e-3,
+    checkpoint=False,
     checkpoint_freq=100,
     overwrite_checkpoint=True,
     check_dir=None,
@@ -74,6 +75,8 @@ def transfer(
         Batch size. Default is full batch.
     learning_rate: float
         Learning rate.
+    checkpoint: bool
+        Wether to checkpoint the model or not.
     checkpoint_freq: int
         Checkpoint saving frequency.
     overwrite_checkpoint: bool
@@ -115,12 +118,7 @@ def transfer(
         batch_size = len(trainset)
         logger.info("No batch size specified. Using gradient descent (full batch).")
 
-    # non-uniform sampler
-    probas_by_len = np.ones(len(lengths), dtype=float)
-    probas_by_len /= probas_by_len.sum()
-    sampler = trainset.get_sampler_by_len(probas_by_len)
-
-    loader = DataLoader(trainset, batch_size=batch_size, sampler=sampler)
+    loader = DataLoader(trainset, batch_size=batch_size)
     logger.info(f"Problem: {trainset.prefix}. Number of training data: {len(trainset)}.")
 
     # --------------------------------------------------------------------------
@@ -152,7 +150,6 @@ def transfer(
 
     logger.info(f"Device used: {device}.")
     model.to(device)
-    probas_by_len = torch.from_numpy(probas_by_len).to(device=device)
 
     logger.info(f"Loading from checkpoint {load_path}.")
     checkpoint = torch.load(load_path)
@@ -177,8 +174,11 @@ def transfer(
         model.train()
         return torch.hstack((train_evals, test_evals))
 
-    n_evals = n_epochs // eval_freq + 1
-    report_eval = EvaluationIO(n_evals, 2 * eval_dim)
+    eval_path = check_dir / "eval_transfer.csv"
+    report_eval = EvaluationIO(
+        eval_path,
+        meaning=[f"{stri}_train" for stri in evaluator.meaning] + [f"{stri}_test" for stri in evaluator.meaning],
+    )
     evals = eval(model)
     report_eval(epoch, evals)
 
@@ -222,12 +222,12 @@ def transfer(
             evals = eval(model)
             report_eval(epoch, evals)
 
-            accuracy = (evals[0 : len(lengths)] * probas_by_len).sum().item()
-            test_accuracy = (evals[eval_dim : eval_dim + len(lengths)] * probas_by_len).sum().item()
+            accuracy = evals[0 : len(lengths)].mean().item()
+            test_accuracy = evals[eval_dim : eval_dim + len(lengths)].mean().item()
             logger.info(f"Epoch {epoch:5d}, Accuracy: {accuracy:.4f}, {test_accuracy:.4f}")
 
         # checkpointing
-        if not epoch % checkpoint_freq or epoch == n_epochs:
+        if checkpoint and (not epoch % checkpoint_freq or epoch == n_epochs):
             if overwrite_checkpoint:
                 path = check_dir / "model.pth"
             else:
@@ -239,9 +239,6 @@ def transfer(
                     "model_state_dict": model.state_dict(),
                     "optimizer_state_dict": optimizer.state_dict(),
                     "losses": losses,
-                    "evals": report_eval.evals,
-                    "timestamps": report_eval.timestamps,
-                    "meaning": evaluator.meaning,
                 },
                 path,
             )

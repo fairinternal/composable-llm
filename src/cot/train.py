@@ -217,6 +217,8 @@ def train(
         eval_path,
         meaning=[f"{stri}_train" for stri in evaluator.meaning] + [f"{stri}_test" for stri in evaluator.meaning],
     )
+    evals = eval(model)
+    report_eval(epoch, evals)
 
     # --------------------------------------------------------------------------
     # Training loop
