@@ -9,6 +9,10 @@ in the root directory of this source tree.
 @ 2024,
 """
 
+import csv
+
+import numpy as np
+
 
 class EvaluationIO:
 
@@ -55,3 +59,11 @@ class EvaluationIO:
                 f.write(",")
                 f.write(str(eval.item()))
             f.write("\n")
+
+    @staticmethod
+    def load_eval(filename):
+        with open(filename, "r") as f:
+            reader = csv.reader(f, delimiter=",")
+            meaning = next(reader)
+            data = list(reader)
+        return meaning, np.array(data, dtype=float)
