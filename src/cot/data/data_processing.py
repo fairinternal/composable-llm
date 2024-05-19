@@ -75,7 +75,7 @@ class SequenceDataset(Dataset):
         ----------
         n_data_per_len : int, or list of int
             Maximum number of data points to generate for each sequence length.
-        split_probas_by_len : float or list of float
+        split_probas_by_len : float, or list of float
             Proportion of data to put in the training set for each sequence length.
         rng : numpy.random.Generator, optional
             Random number generator. If None, use the default generator.
@@ -447,7 +447,7 @@ def data_processing(
     problem="binary-copy",
     n_len=8,
     split_probas=0.5,
-    n_data_per_len=2048,
+    n_datas=2048,
     save_dir=None,
     cot=True,
     **kwargs,
@@ -461,9 +461,9 @@ def data_processing(
         Problem to be solved. Currently supported are "binary-copy", "parity", and "no-cot".
     n_len: int
         Maximum number of lenghts for sequences.
-    split_probas: float or list of float
+    split_probas: float, or list of float
         Percentage of train/test split, eventually specified by length.
-    n_data_per_len: int
+    n_datas: int, or list of int
         Maximum number of data to generate for a given length.
     save_dir: str
         Path of the directory where to save the data.
@@ -484,15 +484,10 @@ def data_processing(
         case _:
             raise ValueError(f"Problem {problem} not recognized.")
 
-    lengths = list(np.arange(n_len) + 1)
+    if isinstance(split_probas, float) and isinstance(n_datas, int):
+        n_datas = [n_datas for _ in range(n_len)]
 
-    if isinstance(split_probas, float):
-        split_probas_by_len = split_probas * np.ones(len(lengths))
-    else:
-        split_probas_by_len = np.array(split_probas)
-        assert len(split_probas_by_len) == n_len, "`split_probas` should be of size `n_len`"
-
-    problem.generate_datafiles(n_data_per_len, split_probas_by_len, rng=RNG)
+    problem.generate_datafiles(n_datas, split_probas, rng=RNG)
 
 
 if __name__ == "__main__":
