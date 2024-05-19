@@ -1,7 +1,12 @@
 """
-Example of grid run.
+Template for grid run.
 
-To be modified to fit the current framework.
+License
+-------
+This source code is licensed under the MIT license found in the LICENSE file
+in the root directory of this source tree.
+
+@ 2024,
 """
 
 import json
@@ -72,16 +77,18 @@ class MainConfig:
     run_id: int = 0
 
     def __post_init__(self):
-        self.unique_id = str(uuid4())
+        unique_id = str(uuid4())
         if self.data_dir == "special":
-            self.data_dir = DATA_DIR / self.unique_id
+            self.data_dir = DATA_DIR / unique_id
 
         if self.check_dir == "special":
-            self.check_dir = CHECK_DIR / self.unique_id
+            self.check_dir = CHECK_DIR / unique_id
 
 
 def run_experiment(
     config,
+    run_data=True,
+    run_train=True,
 ):
     """
     Run one experiments associated with one config file
@@ -91,40 +98,53 @@ def run_experiment(
     config: Config class
     """
 
-    data_processing(
-        problem=config.problem,
-        n_len=config.n_len,
-        split_probas=config.split_probas,
-        n_data_per_len=config.n_data_per_len,
-        save_dir=config.data_dir,
-        cot=config.cot,
-        data_mix=config.data_mix,
-        mod=config.mod,
-    )
+    if run_data:
+        data_processing(
+            problem=config.problem,
+            n_len=config.n_len,
+            split_probas=config.split_probas,
+            n_data_per_len=config.n_data_per_len,
+            save_dir=config.data_dir,
+            cot=config.cot,
+            data_mix=config.data_mix,
+            mod=config.mod,
+        )
 
-    train(
-        problem=config.problem,
-        cot=config.cot,
-        data_dir=config.data_dir,
-        n_len=config.n_len,
-        emb_dim=config.emb_dim,
-        pos_dim=config.pos_dim,
-        freeze_pos=config.freeze_pos,
-        n_head=config.n_head,
-        n_layer=config.n_layer,
-        n_epochs=config.n_epochs,
-        sgd=config.sgd,
-        batch_size=config.batch_size,
-        learning_rate=config.learning_rate,
-        emb_dropout=config.emb_dropout,
-        checkpoint=config.checkpoint,
-        checkpoint_freq=config.checkpoint_freq,
-        overwrite_checkpoint=config.overwrite_checkpoint,
-        load_checkpoint=config.load_checkpoint,
-        check_dir=config.check_dir,
-        full_eval=config.full_eval,
-        eval_freq=config.eval_freq,
-    )
+    if run_train:
+        train(
+            problem=config.problem,
+            cot=config.cot,
+            data_dir=config.data_dir,
+            n_len=config.n_len,
+            emb_dim=config.emb_dim,
+            pos_dim=config.pos_dim,
+            freeze_pos=config.freeze_pos,
+            n_head=config.n_head,
+            n_layer=config.n_layer,
+            n_epochs=config.n_epochs,
+            sgd=config.sgd,
+            batch_size=config.batch_size,
+            learning_rate=config.learning_rate,
+            emb_dropout=config.emb_dropout,
+            checkpoint=config.checkpoint,
+            checkpoint_freq=config.checkpoint_freq,
+            overwrite_checkpoint=config.overwrite_checkpoint,
+            load_checkpoint=config.load_checkpoint,
+            check_dir=config.check_dir,
+            full_eval=config.full_eval,
+            eval_freq=config.eval_freq,
+        )
+
+
+def get_unique_data(config, seeds):
+    data_dirs = {}
+    for seed in seeds:
+        unique_id = str(uuid4())
+        data_dir = DATA_DIR / unique_id
+        setattr(config, "data_dir", data_dir)
+        run_experiment(config, run_data=True, run_train=False)
+        data_dirs[seed] = config.data_dir
+    return data_dirs
 
 
 def run_grid(
@@ -155,6 +175,9 @@ def run_grid(
     if config_filename is None:
         config_filename = "config"
 
+    seeds = getattr(grid, "seed", [0])
+    data_dirs = get_unique_data(MainConfig(), seeds)
+
     for i, values in enumerate(product(*grid.values())):
         # Handling the grid concurrently with many tasks
         if i % num_tasks != (task_id - 1):
@@ -162,12 +185,13 @@ def run_grid(
 
         config = MainConfig(
             check_dir="special",
-            # data_dir="special",
-            data_dir=CHECK_DIR / "exp",
+            data_dir="special",
         )
 
         for k, v in zip(grid.keys(), values):
             setattr(config, k, v)
+
+        setattr(config, "data_dir", data_dirs[config["seed"]])
 
         config_dict = asdict(config)
         with open(CHECK_DIR / f"{config_filename}.jsonl", "a") as f:
@@ -177,7 +201,7 @@ def run_grid(
         logger.info(f"{config=}")
 
         try:
-            run_experiment(config)
+            run_experiment(config, run_data=False, run_train=True)
         except Exception as e:
             logger.warning(f"Error for configuration: {config}.")
             logger.warning(traceback.format_exc())
