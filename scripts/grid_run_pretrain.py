@@ -32,7 +32,7 @@ class MainConfig:
 
     # Data
     data_dir: str = None
-    n_len: int = 32
+    n_len: int = 16
     split_probas: float = 0.5
     n_data_per_len: int = 1024
 
