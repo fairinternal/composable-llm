@@ -3,10 +3,10 @@ Utils functions
 
 License
 -------
-This source code is licensed under the MIT license found in the LICENSE file
+This source code is licensed under the CC license found in the LICENSE file
 in the root directory of this source tree.
 
-@ 2024,
+@ 2024, Meta
 """
 
 import os
@@ -25,6 +25,7 @@ def set_torch_seed(seed):
     torch.manual_seed(seed)
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
+
 
 # -----------------------------------------------------------------------------
 # Json Serializer
