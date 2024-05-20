@@ -1,5 +1,5 @@
 """
-Dissect results script
+Dissect pretrain and finetune results
 
 License
 -------
@@ -36,9 +36,9 @@ logging.basicConfig(
 
 exp = 1
 attention_eval = True
-problems = ["polynomial", "polynomial-no-cot", "parity", "parity-no-cot"]
+problems = ["polynomial", "parity"]
 
-save_dir = SAVE_DIR / f"res-cot-exp{exp}"
+save_dir = SAVE_DIR / f"res-cot-pretrain{exp}"
 save_dir.mkdir(parents=True, exist_ok=True)
 
 all_configs = []
@@ -54,36 +54,40 @@ with open(CHECK_DIR / f"exp{exp}.jsonl", "r") as f:
                 logger.info(json_obj)
                 continue
 
+for config in all_configs:
+    if config["problem"] == "polynomial":
+        print(f'"{config["check_dir"]}/model.pth",')
 
-X = np.arange(4, 32)
-Y = np.arange(4, 64)
+X = np.arange(100)
 Z = np.arange(0, 1001, 10)
 
 Z1, Z2, Z3, Z4 = {}, {}, {}, {}
 
 for problem in problems:
-    Z1[problem] = np.full((len(X), len(Y), len(Z)), -1, dtype=float)
-    Z2[problem] = np.full((len(X), len(Y), len(Z)), -1, dtype=float)
+    Z1[problem] = np.full((len(X), len(Z)), -1, dtype=float)
+    Z2[problem] = np.full((len(X), len(Z)), -1, dtype=float)
 
     if attention_eval:
-        Z3[problem] = np.full((len(X), len(Y), len(Z)), -1, dtype=float)
-        Z4[problem] = np.full((len(X), len(Y), len(Z)), -1, dtype=float)
+        Z3[problem] = np.full((len(X), len(Z)), -1, dtype=float)
+        Z4[problem] = np.full((len(X), len(Z)), -1, dtype=float)
 
 
 logger.info("Parsing results.")
 for config in all_configs:
     data_dir = Path(config["data_dir"])
     problem = config["problem"]
-    problem = problem + ("" if config["cot"] else "-no-cot")
+    # problem = problem + ("" if config["cot"] else "-no-cot")
     n_len = config["n_len"]
-    emb_dim = config["emb_dim"]
     check_dir = Path(config["check_dir"])
 
     try:
-        meaning, data = EvaluationIO.load_eval(check_dir / "eval.csv")
+        meaning, data = EvaluationIO.load_eval(check_dir / "eval_transfer.csv")
     except Exception as e:
         logger.warning(e)
-        logger.warning("Problem with", problem, emb_dim, n_len)
+        logger.warning("Problem with", problem, n_len)
+        continue
+
+    if not len(data):
         continue
 
     timestamps = data[:, 0]
@@ -98,8 +102,7 @@ for config in all_configs:
     test_acc = test_evals[:, min_len - 1 : n_len].mean(axis=1)
 
     if attention_eval:
-        res = np.ones((2, n_len + 1 - min_len, len(Z)), dtype=float)
-        res *= -1
+        res = -np.ones((2, n_len + 1 - min_len, len(Z)), dtype=float)
         for i, eval_prefix in enumerate(["attn0_peaky_thres", "attn1_peaky_thres"]):
             for j, length in enumerate(range(min_len, n_len + 1)):
                 eval_name = f"{eval_prefix}_{length}"
@@ -108,23 +111,22 @@ for config in all_configs:
                 assert ind != 0
 
                 test_res = test_evals[:, ind]
-                res[i, j, : len(test_evals)] = test_res
+                res[i, j, : len(test_res)] = test_res
 
         res = res.mean(axis=1)
 
-    x = np.argmax(X == n_len)
-    y = np.argmax(Y == emb_dim)
+    x = np.argmax(X == config["run_id"])
     try:
-        Z1[problem][x, y, : len(train_acc)] = train_acc
-        Z2[problem][x, y, : len(test_acc)] = test_acc
+        Z1[problem][x, : len(train_acc)] = train_acc
+        Z2[problem][x, : len(test_acc)] = test_acc
         if attention_eval:
-            Z3[problem][x, y] = res[0]
-            Z4[problem][x, y] = res[1]
+            Z3[problem][x] = res[0]
+            Z4[problem][x] = res[1]
     except Exception as e:
         logger.error(e)
         logger.error("Problem '{problem}' does not match excepted values.")
 
-    logger.info(f"done with {problem}, {emb_dim}, {n_len}")
+    logger.info(f"done with {problem}, {x}")
 
 
 logging.info("Saving results.")
@@ -147,6 +149,6 @@ for config in all_configs:
         logger.info(e)
 
     try:
-        subprocess.run(["rm", "-rf", check_dir])
+        subprocess.run(["rm", "-rf", check_dir, "*.pth"])
     except Exception as e:
         logger.info(e)
