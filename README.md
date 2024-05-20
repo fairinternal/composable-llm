@@ -2,27 +2,30 @@
 
 ## TODOS
 
-Plan of Attack 
-- Wes is doing the skill transfer, I will also work on it
-
-- Show loss spikes, and the effect of learning rates and batch size.
-    - launch a grid
-    - show some anedoctical training curves.
-
-- Clean the codebase to send it to NeurIPS.
+For NeurIPS:
+- Redo the positional embedding study for the non-permutation invariant task.
 
 Longer term implementation TODO:
-- Good logging and referential for experiments (maybe wandb).
----
-- Unit tests.
-- Move EvaluationIO to a CSV file system.
-- Be mindful of useless copy and CPU/GPU transfert of the data (e.g., in the evaluation script).
-- Remove the data_sampler part and change it with a more generic data mix scheme. Eventually reweight samples in the training loss.
-- Look into relaunching jobs when they arrive at termination + saving codebase that has launch a run
-- have a better separation between the training loop (a function that takes as inputs some optim parameter, dataset, model and eval class), and how we instanciate it (a change in its arguments, the data, the eval class and so on).
-- deal with error when load_checkpoint=True, but there is no checkpoint.
-- log the path to the stderr file linked with an experiment (get the sbatch %a, %j as an argument to the python script).
-- system to save a screenshot of the code before launching an experiment (clean conda env, and install current version of the code with pip install .).
+-Logging
+    - Good logging and referential for experiments (maybe wandb).
+    - log the path to the stderr file linked with an experiment (get the sbatch %a, %j as an argument to the python script).
+- Unit tests
+- Efficiency
+    - Be mindful of useless copy and CPU/GPU transfert of the data (e.g., in the evaluation script).
+- Small fixes
+    - deal with error when load_checkpoint=True, but there is no checkpoint.
+- Submitit related
+    - Look into relaunching jobs when they arrive at termination + saving codebase that has launch a run
+    - system to save a screenshot of the code before launching an experiment (clean conda env, and install current version of the code with pip install .).
+- Thicker codebase
+    - A code base with TinyStory.
+
+- Future Investigation:
+    - Curriculum learning
+    - Generic progress measure
+    - What happen when the loss plateau
+    - The structure of the learned embedding when the task has a strong geometrical structure
+    - The effect of Adam and Layer norm.
 
 ## Disorganized thoughts 
 The following is not really well organized, but it gives food for thoughts. We should focus on some meaningful experiments that are insightful beyond our toy setup.
