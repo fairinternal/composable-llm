@@ -10,8 +10,6 @@ in the root directory of this source tree.
 """
 
 import logging
-import sys
-from functools import partial
 
 import numpy as np
 import torch
@@ -28,36 +26,30 @@ from cot.models import Transformer, TransformerConfig
 logger = logging.getLogger(__name__)
 
 # -----------------------------------------------------------------------------
-# Device
+# Reproducibility and Device
 # -----------------------------------------------------------------------------
 
 if torch.cuda.is_available():
-    device = torch.device("cuda")
+    device = torch.device("cuda:0")
 else:
     device = torch.device("cpu")
 
 
-def train(
-    problem="binary-copy",
-    cot=True,
+def transfer(
+    load_path,
+    problem="parity",
+    finetune_mlp2=False,
     data_dir=None,
-    n_len=16,
-    emb_dim=128,
-    pos_dim=None,
-    freeze_pos=False,
-    n_head=1,
-    n_layer=2,
+    n_len=8,
     n_epochs=1000,
-    sgd=False,
-    batch_size=256,
-    learning_rate=3e-4,
+    batch_size=None,
+    learning_rate=1e-3,
     emb_dropout=0.1,
     checkpoint=False,
     checkpoint_freq=100,
     overwrite_checkpoint=True,
-    load_checkpoint=False,
     check_dir=None,
-    full_eval=False,
+    full_eval=True,
     eval_freq=10,
 ):
     """
@@ -65,42 +57,30 @@ def train(
 
     Paramters
     ---------
+    load_path: str
+        Path of the model to load before starting finetuning.
     problem: str
-        Problem to be solved. Currently supported are "binary-copy", "parity", and "no-cot".
-    cot: bool
-        Wether to use chain-of-thought or not.
+        Problem identifier
+    finetune_mlp2: bool
+        Wether to only finetune the second layer MLP or not.
     data_dir: str
         Path to the directory where to save the data.
     n_len: int
         Maximum number of lenghts for sequences.
-    emb_dim: int
-        Embedding dimension size.
-    pos_dim: int
-        Dimension of the positional embedding. Default is `emb_dim`.
-    freeze_pos: bool
-        Wether to learn the position embedding or to freeze them.
-    n_head: int
-        Number of attention heads.
-    n_layer: int
-        Number of layers.
+    emb_dropout: float
+        Dropout rate for the embeddings.
     n_epochs: int
         Total number of training epochs.
-    sgd: bool
-        Wether to use SGD or Adam.
     batch_size: int
         Batch size. Default is full batch.
     learning_rate: float
         Learning rate.
-    emb_dropout: float
-        Dropout rate for the embeddings.
     checkpoint: bool
         Wether to checkpoint the model or not.
     checkpoint_freq: int
         Checkpoint saving frequency.
     overwrite_checkpoint: bool
         Whether to overwrite existing checkpoints or not.
-    load_checkpoint: bool
-        Whether to load a previous checkpoint for continuing training.
     check_dir: str
         Path to checkpoint directory.
     full_eval: bool
@@ -115,11 +95,11 @@ def train(
 
     match problem:
         case "binary-copy":
-            Problem = partial(BinaryCopy, cot=cot)
+            Problem = BinaryCopy
         case "parity":
-            Problem = partial(Parity, cot=cot)
+            Problem = Parity
         case "polynomial":
-            Problem = partial(Polynomial, cot=cot)
+            Problem = Polynomial
         case "mix":
             Problem = MixedDataset
         case _:
@@ -147,52 +127,34 @@ def train(
 
     config = TransformerConfig(
         vocab_size=64,
-        emb_dim=emb_dim,
-        pos_emb=True,
-        pos_dim=pos_dim,
-        freeze_pos=freeze_pos,
+        emb_dim=128,
         seq_len=len(trainset[0]),
         emb_dropout=emb_dropout,
-        n_head=n_head,
-        n_layer=n_layer,
+        n_head=1,
+        n_layer=2,
     )
 
     losses = np.empty(n_epochs)
 
+    if check_dir is None:
+        check_dir = CHECK_DIR / trainset.prefix
+    check_dir.mkdir(parents=True, exist_ok=True)
+
     model = Transformer(config)
     logger.debug(f"Model: {model}.")
 
-    if sgd:
-        optimizer = optim.SGD(model.parameters(), lr=learning_rate)
+    if finetune_mlp2:
+        optimizer = optim.Adam(model.blocks[1].ffn.parameters(), lr=learning_rate)
     else:
         optimizer = optim.Adam(model.parameters(), lr=learning_rate)
 
     logger.info(f"Device used: {device}.")
     model.to(device)
 
-    # --------------------------------------------------------------------------
-    # Checkpoint
-    # --------------------------------------------------------------------------
-
-    if check_dir is None:
-        check_dir = CHECK_DIR / trainset.prefix
-    check_dir.mkdir(parents=True, exist_ok=True)
-
-    if load_checkpoint:
-        path = check_dir / "model.pth"
-        logger.info(f"Loading from checkpoint {path}.")
-        checkpoint = torch.load(path)
-
-        epoch = checkpoint["epoch"]
-
-        if epoch > n_epochs:
-            logger.error(f"Model has been trained for {epoch} epochs, which is higher than {n_epochs}")
-            sys.exit()
-        model.load_state_dict(checkpoint["model_state_dict"])
-        optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
-        losses[:epoch] = checkpoint["losses"][:epoch]
-    else:
-        epoch = 0
+    logger.info(f"Loading from checkpoint {load_path}.")
+    checkpoint = torch.load(load_path)
+    model.load_state_dict(checkpoint["model_state_dict"])
+    epoch = 0
 
     # --------------------------------------------------------------------------
     # Evaluation Placeholders
@@ -212,7 +174,7 @@ def train(
         model.train()
         return torch.hstack((train_evals, test_evals))
 
-    eval_path = check_dir / "eval.csv"
+    eval_path = check_dir / "eval_transfer.csv"
     report_eval = EvaluationIO(
         eval_path,
         meaning=[f"{stri}_train" for stri in evaluator.meaning] + [f"{stri}_test" for stri in evaluator.meaning],
@@ -251,7 +213,7 @@ def train(
             with torch.no_grad():
                 running_loss += loss.item()
 
-        losses[epoch] = running_loss * (batch_size / len(trainset))
+        losses[epoch] = running_loss
         epoch = epoch + 1
         logger.info(f"Epoch {epoch:5d}, Loss: {running_loss:.4f}")
 
@@ -297,4 +259,4 @@ if __name__ == "__main__":
         handlers=[logging.StreamHandler()],
     )
 
-    fire.Fire(train)
+    fire.Fire(transfer)

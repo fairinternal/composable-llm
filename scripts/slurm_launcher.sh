@@ -18,4 +18,4 @@
 #SBATCH --array=1-20
 
 
-python /private/home/vivc/code/llm/cot/scripts/grid_run_exp.py --num-tasks $SLURM_ARRAY_TASK_COUNT --task-id $SLURM_ARRAY_TASK_ID --config_filename exp
+python /private/home/vivc/code/llm/cot/scripts/grid_run.py --num-tasks $SLURM_ARRAY_TASK_COUNT --task-id $SLURM_ARRAY_TASK_ID --config_filename exp

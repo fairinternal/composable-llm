@@ -13,7 +13,7 @@ import logging
 
 import numpy as np
 import torch
-from torch.utils.data import Dataset, WeightedRandomSampler
+from torch.utils.data import Dataset
 
 from cot.config import DATA_DIR, RNG, TOKEN_DICT
 
@@ -42,33 +42,30 @@ class SequenceDataset(Dataset):
 
     prefix = None
 
-    def __init__(self, save_dir=None):
+    def __init__(self, save_dir=None, cot=True):
+        self.cot = cot
+        if not self.cot:
+            assert self.prefix is not None
+            self.prefix = self.prefix + "-no-cot"
+
         if save_dir is None:
             save_dir = DATA_DIR
             if self.prefix is not None:
                 save_dir = DATA_DIR / self.prefix
         self.save_dir = save_dir
 
-    @classmethod
-    def generate_fixed_len_data(cls, seq_len, n_data, rng=None):
-        """Generate sequence with fixed sequence length."""
-        raise NotImplementedError
+        tag = {True: " ", False: "not "}[self.cot]
+        logger.info(f"Problem will {tag}use CoT.")
 
     @classmethod
     def get_len(cls, seq_len):
         """Full sequence length."""
+        return 2 * seq_len + 2
+
+    @classmethod
+    def generate_fixed_len_data(cls, seq_len, n_data, rng=None):
+        """Generate sequence with fixed sequence length."""
         raise NotImplementedError
-
-    def change_save_dir(self, save_dir):
-        """
-        Change saving directory.
-
-        Parameters
-        ----------
-        save_dir: str
-            Path of the directory where to save the data.
-        """
-        self.save_dir = save_dir
 
     def generate_datafiles(self, n_data_per_len, split_probas_by_len, rng=None):
         """
@@ -76,9 +73,9 @@ class SequenceDataset(Dataset):
 
         Parameters
         ----------
-        n_data_per_len : int
+        n_data_per_len : int, or list of int
             Maximum number of data points to generate for each sequence length.
-        split_probas_by_len : list of float
+        split_probas_by_len : float, or list of float
             Proportion of data to put in the training set for each sequence length.
         rng : numpy.random.Generator, optional
             Random number generator. If None, use the default generator.
@@ -89,10 +86,28 @@ class SequenceDataset(Dataset):
         if rng is None:
             rng = np.random.default_rng()
 
+        assert isinstance(n_data_per_len, list) or isinstance(split_probas_by_len, list)
+
+        if not isinstance(n_data_per_len, list):
+            n_data_per_len = [n_data_per_len for _ in split_probas_by_len]
+
+        if not isinstance(split_probas_by_len, list):
+            split_probas_by_len = [split_probas_by_len for _ in n_data_per_len]
+
         self.save_dir.mkdir(parents=True, exist_ok=True)
-        for seq_len, split_proba in enumerate(split_probas_by_len):
+        for seq_len, (n_data, split_proba) in enumerate(zip(n_data_per_len, split_probas_by_len)):
+            if n_data == 0:
+                continue
+
             seq_len += 1
-            data = self.generate_fixed_len_data(seq_len=seq_len, n_data=n_data_per_len, rng=rng)
+            data = self.generate_fixed_len_data(seq_len=seq_len, n_data=n_data, rng=rng)
+
+            # without chain of thoughtsa
+            if not self.cot:
+                data[:, seq_len + 2] = data[:, -1]
+                data[:, seq_len + 3 :] = TOKEN_DICT["EoS"]
+
+            # random ordering and splitting
             rng.shuffle(data)
             n_train = int(split_proba * len(data))
             np.save(self.save_dir / f"train_{seq_len}.npy", data[:n_train])
@@ -147,7 +162,7 @@ class SequenceDataset(Dataset):
                 self.save_dir / f"{data_type}_{seq_len}.npy"
             )
 
-        return data, indices
+        return data
 
     def set_data(self, lengths, data_type):
         """
@@ -166,35 +181,8 @@ class SequenceDataset(Dataset):
         -----
         Should be called after `generate_datafiles`.
         """
-        data, indices = self.load_data(lengths, data_type=data_type)
+        data = self.load_data(lengths, data_type=data_type)
         self.data = torch.from_numpy(data)
-        self.indices = torch.from_numpy(indices)
-
-    def get_sampler_by_len(self, probas_by_len):
-        """
-        Set the probability of each data point.
-
-        Endows `self` with attributes `proba_by_data`.
-
-        Parameters
-        ----------
-        probas_by_len : list of numpy.ndarray
-            Probability vector to sample of sequence of a given length.
-
-        Notes
-        -----
-        Should be called after `set_train_data`.
-        """
-
-        assert abs(sum(probas_by_len) - 1) < 1e-6, "The sum of the probabilities must be equal to 1."
-
-        probas = torch.empty(self.indices[-1])
-        for i in range(len(probas_by_len)):
-            start, end = self.indices[i], self.indices[i + 1]
-            if start != end:
-                probas[start:end] = probas_by_len[i] / (end - start)
-
-        return WeightedRandomSampler(probas, len(self.data))
 
     def __len__(self):
         return len(self.data)
@@ -211,8 +199,8 @@ class SequenceDataset(Dataset):
 class BinaryCopy(SequenceDataset):
     prefix = "binary_copy"
 
-    def __init__(self, save_dir=None):
-        super().__init__(save_dir=save_dir)
+    def __init__(self, save_dir=None, cot=True):
+        super().__init__(save_dir=save_dir, cot=cot)
 
     @classmethod
     def generate_fixed_len_data(cls, seq_len, n_data, rng=None):
@@ -239,23 +227,11 @@ class BinaryCopy(SequenceDataset):
             rng = np.random.default_rng()
 
         # allocate memory
-        if 2**seq_len < n_data:
-            n_data = 2**seq_len
         length = cls.get_len(seq_len)
         data = np.empty((n_data, length), dtype=np.int32)
 
         # input data
-        # ... exhaustive case
-        if 2**seq_len == n_data:
-            powers_of_two = 2 ** np.arange(seq_len)[::-1]
-            data[:, 1 : seq_len + 1] = (np.arange(n_data).reshape(-1, 1) & powers_of_two != 0).astype(np.int32)
-        # ... non-exhaustive case
-        else:
-            data[:, 1 : seq_len + 1] = (rng.random((n_data, seq_len)) > 0.5).astype(np.int32)
-        ind_neg = data == 0
-        ind_pos = data == 1
-        data[ind_neg] = TOKEN_DICT[0]
-        data[ind_pos] = TOKEN_DICT[1]
+        data[:, 1 : seq_len + 1] = (rng.random((n_data, seq_len)) > 0.5).astype(np.int32)
 
         # add spectial token at begining of sentence
         if cls.prefix in TOKEN_DICT:
@@ -271,11 +247,6 @@ class BinaryCopy(SequenceDataset):
         data[:, seq_len + 2 :] = data[:, 1 : seq_len + 1]
         return data
 
-    @classmethod
-    def get_len(cls, seq_len):
-        """Full sequence length."""
-        return 2 * seq_len + 2
-
 
 # -----------------------------------------------------------------------------
 # Parity problem
@@ -283,16 +254,13 @@ class BinaryCopy(SequenceDataset):
 
 
 class Parity(SequenceDataset):
+    prefix = "parity"
 
-    def __init__(self, cot=True, save_dir=None):
-        self.cot = cot
-        if self.cot:
-            self.prefix = "parity"
-        else:
-            self.prefix = "no_cot"
-        super().__init__(save_dir=save_dir)
+    def __init__(self, save_dir=None, cot=True):
+        super().__init__(save_dir=save_dir, cot=cot)
 
-    def generate_fixed_len_data(self, seq_len, n_data, rng=None):
+    @classmethod
+    def generate_fixed_len_data(cls, seq_len, n_data, rng=None):
         """
         Generate parity data with fixed sequence length.
 
@@ -321,32 +289,83 @@ class Parity(SequenceDataset):
             rng = np.random.default_rng()
 
         # allocate memory
-        if 2**seq_len < n_data:
-            n_data = 2**seq_len
+        # if 2**seq_len < n_data:
+        #     n_data = 2**seq_len
+        length = cls.get_len(seq_len)
+        data = np.empty((n_data, length), dtype=np.int32)
+
+        # input data
+        # # ... exhaustive case
+        # powers_of_two = 2 ** np.arange(seq_len)[::-1]
+        # data[:, 1 : seq_len + 1] = (np.arange(n_data).reshape(-1, 1) & powers_of_two != 0).astype(np.int32)
+        # ... non-exhaustive case
+        data[:, 1 : seq_len + 1] = (rng.random((n_data, seq_len)) > 0.5).astype(np.int32)
+
+        # CoT data
+        data[:, seq_len + 2 :] = np.cumsum(data[:, 1 : seq_len + 1], axis=1) % 2
+
+        # add spectial token at begining of sentence
+        if cls.prefix in TOKEN_DICT:
+            data[:, 0] = TOKEN_DICT[cls.prefix]
+        else:
+            logger.info(f"Prefix {cls.prefix} not in TOKEN_DICT, falling back to generic BoS.")
+            data[:, 0] = TOKEN_DICT["BoS"]
+
+        # end of input
+        data[:, seq_len + 1] = TOKEN_DICT["EoI"]
+
+        return data
+
+
+# -----------------------------------------------------------------------------
+# Polynomial Evaluation
+# -----------------------------------------------------------------------------
+
+
+class Polynomial(SequenceDataset):
+    prefix = "polynomial"
+
+    def __init__(self, mod=11, func=None, save_dir=None, cot=True, **kwargs):
+        self.mod = mod
+        if func is None:
+
+            # polynomial iteration based on this function is not permutation invariant
+            def func(x, y):
+                return x * y + 1
+
+        self.func = func
+        super().__init__(save_dir=save_dir, cot=cot)
+
+    def generate_fixed_len_data(self, seq_len, n_data, rng=None):
+        """
+        Generate copy data with fixed sequence length.
+
+        Parameters
+        ----------
+        seq_len : int
+            Length of the sequence.
+        n_data : int
+            Number of data points to generate.
+            Will be reduced to 2**seq_len if greater.
+        rng : numpy.random.Generator, optional
+            Random number generator. If None, use the default generator.
+            Used if n_data is too small compared to all the potential sequences.
+
+        Returns
+        -------
+        data: numpy.ndarray
+            Generated data containing sequence of tokens specified by TOKEN_DICT.
+        """
+        if rng is None:
+            rng = np.random.default_rng()
+
+        # allocate memory
         length = self.get_len(seq_len)
         data = np.empty((n_data, length), dtype=np.int32)
 
         # input data
-        # ... exhaustive case
-        if 2**seq_len == n_data:
-            powers_of_two = 2 ** np.arange(seq_len)[::-1]
-            data[:, 1 : seq_len + 1] = (np.arange(n_data).reshape(-1, 1) & powers_of_two != 0).astype(np.int32)
         # ... non-exhaustive case
-        else:
-            data[:, 1 : seq_len + 1] = (rng.random((n_data, seq_len)) > 0.5).astype(np.int32)
-
-        if self.cot:
-            # CoT data
-            data[:, seq_len + 2 :] = np.cumsum(data[:, 1 : seq_len + 1], axis=1) % 2
-        else:
-            data[:, seq_len + 2] = np.sum(data[:, 1 : seq_len + 1], axis=1) % 2
-            assert TOKEN_DICT["EoS"] not in [0, 1]
-            data[:, seq_len + 3 :] = TOKEN_DICT["EoS"]
-
-        ind_neg = data == 0
-        ind_pos = data == 1
-        data[ind_neg] = TOKEN_DICT[0]
-        data[ind_pos] = TOKEN_DICT[1]
+        data[:, 1 : seq_len + 1] = rng.integers(1, self.mod, size=(n_data, seq_len), dtype=np.int32)
 
         # add spectial token at begining of sentence
         if self.prefix in TOKEN_DICT:
@@ -358,11 +377,13 @@ class Parity(SequenceDataset):
         # end of input
         data[:, seq_len + 1] = TOKEN_DICT["EoI"]
 
-        return data
+        # compute the sum
+        data[:, seq_len + 2 :] = data[:, 1 : seq_len + 1]
+        for t in range(1, seq_len):
+            data[:, seq_len + 2 + t] = self.func(data[:, seq_len + 2 + t - 1], data[:, seq_len + 2 + t])
+            data[:, seq_len + 2 + t] %= self.mod
 
-    def get_len(self, seq_len):
-        """Full sequence length."""
-        return 2 * seq_len + 2
+        return data
 
 
 # -----------------------------------------------------------------------------
@@ -373,10 +394,10 @@ class Parity(SequenceDataset):
 class MixedDataset(SequenceDataset):
     prefix = "mix"
 
-    def __init__(self, data_mix=0.5, save_dir=None):
+    def __init__(self, data_mix=0.5, save_dir=None, cot=True, **kwargs):
         self.data_mix = data_mix
-        self.binary = BinaryCopy()
-        self.parity = Parity()
+        self.binary = BinaryCopy(cot=cot)
+        self.parity = Parity(cot=cot)
         super().__init__(save_dir=save_dir)
 
     def generate_fixed_len_data(self, seq_len, n_data, rng=None):
@@ -406,11 +427,6 @@ class MixedDataset(SequenceDataset):
         data = np.vstack((data_binary, data_parity))
         return data
 
-    @classmethod
-    def get_len(cls, seq_len):
-        """Full sequence length."""
-        return 2 * seq_len + 2
-
 
 # -----------------------------------------------------------------------------
 # Main script
@@ -419,11 +435,12 @@ class MixedDataset(SequenceDataset):
 
 def data_processing(
     problem="binary-copy",
-    n_len=8,
+    n_len=32,
     split_probas=0.5,
-    n_data_per_len=2048,
+    n_datas=2048,
     save_dir=None,
-    data_mix=0.5,
+    cot=True,
+    **kwargs,
 ):
     """
     Training a Transformer model on a specified problem.
@@ -434,36 +451,33 @@ def data_processing(
         Problem to be solved. Currently supported are "binary-copy", "parity", and "no-cot".
     n_len: int
         Maximum number of lenghts for sequences.
-    split_probas: float or list of float
+    split_probas: float, or list of float
         Percentage of train/test split, eventually specified by length.
-    n_data_per_len: int
+    n_datas: int, or list of int
         Maximum number of data to generate for a given length.
     save_dir: str
         Path of the directory where to save the data.
-    data_mix: float
-        Percentage of copy vs parity data when mixing data.
+    cot: bool
+        Wether to use chain-of-thought.
+    kwargs: keyword arguments
+        Arugment specific to each problem.
     """
     match problem:
         case "binary-copy":
-            problem = BinaryCopy(save_dir=save_dir)
+            problem = BinaryCopy(save_dir=save_dir, cot=cot)
         case "parity":
-            problem = Parity(save_dir=save_dir)
-        case "no-cot":
-            problem = Parity(cot=False, save_dir=save_dir)
+            problem = Parity(save_dir=save_dir, cot=cot)
+        case "polynomial":
+            problem = Polynomial(save_dir=save_dir, cot=cot, **kwargs)
         case "mix":
-            problem = MixedDataset(data_mix=data_mix, save_dir=save_dir)
+            problem = MixedDataset(save_dir=save_dir, cot=cot, **kwargs)
         case _:
             raise ValueError(f"Problem {problem} not recognized.")
 
-    lengths = list(np.arange(n_len) + 1)
+    if isinstance(split_probas, float) and isinstance(n_datas, int):
+        n_datas = [n_datas for _ in range(n_len)]
 
-    if isinstance(split_probas, float):
-        split_probas_by_len = split_probas * np.ones(len(lengths))
-    else:
-        split_probas_by_len = np.array(split_probas)
-        assert len(split_probas_by_len) == n_len, "`split_probas` should be of size `n_len`"
-
-    problem.generate_datafiles(n_data_per_len, split_probas_by_len, rng=RNG)
+    problem.generate_datafiles(n_datas, split_probas, rng=RNG)
 
 
 if __name__ == "__main__":

@@ -19,15 +19,9 @@ from uuid import uuid4
 from cot.config import CHECK_DIR, DATA_DIR
 from cot.data import data_processing
 from cot.train import train
-from cot.utils import JsonEncoder, set_torch_seed
+from cot.utils import JsonEncoder
 
 logger = logging.getLogger(__name__)
-
-# -----------------------------------------------------------------------------
-# Reproducibility
-# -----------------------------------------------------------------------------
-
-set_torch_seed(0)
 
 
 @dataclass
@@ -38,13 +32,13 @@ class MainConfig:
 
     # Data
     data_dir: str = None
-    n_len: int = 32
+    n_len: int = 16
     split_probas: float = 0.5
-    n_data_per_len: int = 2048
+    n_data_per_len: int = 1024
 
     # Extra data options
     data_mix: float = 0.5
-    mod: int = 5
+    mod: int = 11
 
     # Model
     emb_dim: int = 128
@@ -63,9 +57,9 @@ class MainConfig:
     emb_dropout: float = 0.1
 
     # Checkpointing
-    checkpoint: bool = False
+    checkpoint: bool = True
     checkpoint_freq: int = 100
-    overwrite_checkpoint: bool = True
+    overwrite_checkpoint: bool = False
     load_checkpoint: bool = False
     check_dir: str = None
 
@@ -136,14 +130,14 @@ def run_experiment(
         )
 
 
-def get_unique_data(config, run_ids):
+def get_unique_data(config, seeds):
     data_dirs = {}
-    for run_id in run_ids:
+    for seed in seeds:
         unique_id = str(uuid4())
         data_dir = DATA_DIR / unique_id
         setattr(config, "data_dir", data_dir)
         run_experiment(config, run_data=True, run_train=False)
-        data_dirs[run_id] = config.data_dir
+        data_dirs[seed] = config.data_dir
     return data_dirs
 
 
@@ -166,17 +160,14 @@ def run_grid(
     """
 
     grid = {
-        "emb_dim": [32, 64, 128],
-        "n_len": [12, 16, 32],
+        "problem": ["polynomial", "parity"],
+        "run_id": range(100),
     }
 
     CHECK_DIR.mkdir(parents=True, exist_ok=True)
 
     if config_filename is None:
         config_filename = "config"
-
-    seeds = getattr(grid, "seed", [0])
-    data_dirs = get_unique_data(MainConfig(), seeds)
 
     for i, values in enumerate(product(*grid.values())):
         # Handling the grid concurrently with many tasks
@@ -191,8 +182,6 @@ def run_grid(
         for k, v in zip(grid.keys(), values):
             setattr(config, k, v)
 
-        setattr(config, "data_dir", data_dirs[config.run_id])
-
         config_dict = asdict(config)
         with open(CHECK_DIR / f"{config_filename}.jsonl", "a") as f:
             json.dump(config_dict, f, cls=JsonEncoder, indent=4)
@@ -201,7 +190,7 @@ def run_grid(
         logger.info(f"{config=}")
 
         try:
-            run_experiment(config, run_data=False, run_train=True)
+            run_experiment(config, run_data=True, run_train=True)
         except Exception as e:
             logger.warning(f"Error for configuration: {config}.")
             logger.warning(traceback.format_exc())
