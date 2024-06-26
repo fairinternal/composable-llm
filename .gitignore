@@ -1,0 +1,22 @@
+
+# Data and figures
+data/
+*.pdf
+
+# Package and cache
+*.egg-info
+*__pycache__
+
+# Checkpointing and runs
+models/
+savings/
+
+# Configuration files
+.vscode/
+
+# Personal file and folder
+src/mathllm/
+tutorial/
+Notes.md
+old_*
+
