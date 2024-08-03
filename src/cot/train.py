@@ -44,6 +44,8 @@ def train(
     n_len=16,
     emb_dim=128,
     pos_dim=None,
+    rope=False,
+    rope_theta=10_000,
     freeze_pos=False,
     n_head=1,
     n_layer=2,
@@ -77,6 +79,10 @@ def train(
         Embedding dimension size.
     pos_dim: int
         Dimension of the positional embedding. Default is `emb_dim`.
+    rope: bool
+        Whether to use Rotary position embedding.
+    rope_theta: int
+        Period for Rope embedding.
     freeze_pos: bool
         Wether to learn the position embedding or to freeze them.
     n_head: int
@@ -148,8 +154,10 @@ def train(
     config = TransformerConfig(
         vocab_size=64,
         emb_dim=emb_dim,
-        pos_emb=True,
+        pos_emb=False if rope else True,
         pos_dim=pos_dim,
+        rope=rope,
+        rope_theta=rope_theta,
         freeze_pos=freeze_pos,
         seq_len=len(trainset[0]),
         emb_dropout=emb_dropout,

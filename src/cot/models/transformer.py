@@ -48,8 +48,6 @@ class SelfAttention(nn.Module):
             whether to use bias in attention
         attn_dropout: float
             dropout probability
-        attn_downsampling: int
-            downsampling factor for key and value matrices
         flash: bool
             whether to use flash attention (could mess up half precision computation for mistral)
 
@@ -83,6 +81,13 @@ class SelfAttention(nn.Module):
         # drop-out regularization
         self.dropout = config.attn_dropout
 
+        # rotational positional encoding
+        self.rope = config.rope
+        if self.rope:
+            self.L = L
+            self.theta = config.rope_theta
+            self.register_buffer("rope_angles", self.get_rope_freqs(self.L, E // self.H, self.theta))
+
     def forward(self, x, verbose=False):
         """
         Self attention
@@ -108,6 +113,10 @@ class SelfAttention(nn.Module):
         k = k.view(N, L, H, dim).transpose(1, 2)
         v = v.view(N, L, H, dim).transpose(1, 2)
 
+        if self.rope:
+            q = self.rope_view(q)
+            k = self.rope_view(k)
+
         if not self.flash or verbose:
             # classical implementation
             # (N, H, L, E / H) @ (N, H, E / H, L) -> (N, H, L, L)
@@ -128,6 +137,43 @@ class SelfAttention(nn.Module):
         if verbose:
             return z, attn
         return z
+
+    @staticmethod
+    def get_rope_freqs(seq_len, fan_out, theta):
+        """
+        Returns the frequencies for the positional encoding.
+
+        Parameters
+        ----------
+        seq_len: int
+            sequence  length of the sequence
+        fan_out: int
+            output dimension for each token in the sequence
+        theta: float
+            rope angle parameter
+        """
+        freqs = 1.0 / (theta ** (torch.arange(0, fan_out - 1, 2) / fan_out))
+        t = torch.arange(seq_len)
+        out = t.unsqueeze(-1) * freqs.unsqueeze(0)
+        out = torch.polar(torch.ones_like(out), out)
+        return out
+
+    def rope_view(self, qk):
+        """
+        Recast tensor to complex numbers and apply rotational position filter.
+        """
+        N, H, L, dim = qk.size()
+        assert L <= self.rope_angles.size(0), "sequence length is too long for rope attention"
+
+        # Handling typing bad behavior (complex.half() -> complex.real().half())
+        if self.rope_angles.dtype in [torch.float16, torch.float32]:
+            self.rope_angles = self.get_rope_freqs(self.L, dim, self.theta).to(device=self.rope_angles.device)
+
+        # need fixed type for torch.view_as_complex to work properly
+        qk_complex = torch.view_as_complex(qk.float().reshape(N, H, L, dim // 2, 2))
+        qk_rot = torch.view_as_real(qk_complex * self.rope_angles[:L]).flatten(-2)
+        qk = qk_rot.type_as(qk)
+        return qk
 
 
 # --------------------------------------------------------------------------------
@@ -381,7 +427,8 @@ class TransformerConfig:
     n_head: int = -1
     attn_bias: bool = False
     attn_dropout: float = None
-    attn_downsampling: int = 1
+    rope: bool = False
+    rope_theta: int = 10_000
 
     # Feed-forward parameters
     activation: float = "gelu"
