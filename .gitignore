@@ -17,3 +17,5 @@ MYTODO.md
 tmp_*
 tests/
 *DS_Store
+
+src/apps/gssm/configs

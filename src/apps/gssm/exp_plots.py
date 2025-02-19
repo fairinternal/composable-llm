@@ -12,8 +12,8 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import pandas as pd
 
-from nanollama.visualization import get_processed_results, jsonl_to_numpy, process_results, read_indented_jsonl
 from nanollama.utils import flatten_config
+from nanollama.visualization import get_processed_results, jsonl_to_numpy, process_results, read_indented_jsonl
 
 LOG_DIR = Path("/checkpoint/vivc/icml/")
 CODE_DIR = Path("/private/home/vivc/code/composable-llm/")
@@ -23,6 +23,8 @@ keys = [scaling_key, "grid_id"]
 
 data_range = range(1, 9)
 data_range = [1, 2, 3, 4, 5, 7, 8]
+data_range = range(101, 103)
+data_range = [102]
 
 # name = "params"
 # scaling_key = "nb_params"
@@ -55,9 +57,11 @@ for exp in data_range:
     nodepath = prefix / ".gssm_id_config.jsonl"
     keys = ["grid_id", "gssm_id", "seed"]
     graph_info = pd.DataFrame(jsonl_to_numpy(filepath, keys))
+
     def make_nice(cfg):
         cfg["nodes"] = {n["name"]: n for n in cfg["nodes"]}
         return flatten_config(cfg)
+
     id_to_config = [make_nice(x) for x in read_indented_jsonl(nodepath)]
     nodes_info = pd.DataFrame(id_to_config)
     graph_info = graph_info.merge(nodes_info, left_on=["gssm_id"], right_on=["gssm_id"], how="left")
@@ -77,8 +81,11 @@ difficulty_key = "hmm_difficulty"
 for exp, data in zip(data_range, all_data):
     plt.figure()
     # make a line y = x
-    # plt.plot([2.5, 5], [2.5, 5], color="black", ls=":")
-    all_scales = data[scaling_key].unique()[:3]
+    # lim = [1, 2]
+    # plt.plot(lim, lim, color="black", ls=":")
+    # plt.xlim(*lim)
+    # plt.ylim(*lim)
+    all_scales = data[scaling_key].unique()[:2]
     nb_data = len(all_scales)
     all_graph = data["gssm_id"].unique()
     for i, grid_id in enumerate(all_graph):
@@ -86,9 +93,12 @@ for exp, data in zip(data_range, all_data):
         for alpha, scale in enumerate(all_scales):
             alpha = (alpha + 1) / nb_data
             data2 = data1[data1[scaling_key] == scale]
+            loss = data2["best"]
+            entropy = data2[difficulty_key]
+            kl = loss - entropy
             plt.scatter(
-                data2[difficulty_key],
-                data2["best"],
+                entropy,
+                kl,
                 label=f"{scale} {scaling_key} {grid_id}",
                 color=f"C{i}",
                 alpha=alpha,
@@ -105,10 +115,12 @@ for exp, data in zip(data_range, all_data):
             #     color=f"C{i}",
             #     alpha=alpha,
             # )
-        # print(f"graph {grid_id} done")
+            # print(f"graph {grid_id} done")
+            # plt.scatter(entropy.mean(), kl.mean(), s=100, c=f"C{i}")
     plt.xlabel(difficulty_key)
     plt.ylabel("test loss")
     plt.title(f"exp={exp}")
+    plt.yscale("log")
     # plt.loglog()
     # plt.legend()
 
@@ -116,8 +128,8 @@ for exp, data in zip(data_range, all_data):
 
 plt.figure()
 data = all_data[0]
-# plt.plot([0, 3], [0, 3], color="black", ls=":")
-for index, name in zip([range(7), range(7, 13)], ["alpha_X", "alpha_Z"]):
+plt.plot([0, 3.25], [0, 3.25], color="black", ls=":")
+for index, name in zip([range(1, 7), range(7, 13)], ["alpha_X", "alpha_Z"]):
     mask = None
     for i in index:
         if mask is None:
@@ -126,14 +138,23 @@ for index, name in zip([range(7), range(7, 13)], ["alpha_X", "alpha_Z"]):
             mask |= all_data[0]["gssm_id"] == i
     tmp = data[mask]
 
-    for scale in data[scaling_key].unique()[:3]:
+    for j, scale in enumerate(data[scaling_key].unique()[:5]):
+        alpha = (5 - j) / 5
+        color = 0 if i == 6 else 1
         _tmp = tmp[tmp[scaling_key] == scale]
         _name = {"X": "Z", "Z": "X"}[name[-1]]
-        _key = {"data.n_data": "data"}[scaling_key]
-        plt.scatter(_tmp[difficulty_key], _tmp["best"], label=rf"{scale} {_key}, $\alpha_{_name}$" + r"$=10^{-3}$")
-plt.xlabel(difficulty_key)
+        _key = {"data.n_data": "data", "nb_params": "params"}[scaling_key]
+        entropy = _tmp[difficulty_key]
+        loss = _tmp["best"]
+        kl = loss - entropy
+        # kl = loss
+        plt.scatter(entropy, kl, label=rf"N={scale}, $\alpha_{_name}$" + r"$=10^{-3}$", alpha=alpha, c=f"C{color}")
+        # plt.scatter(entropy.mean(), kl.mean(), label=rf"{scale} {_key}, $\alpha_{_name}$" + r"$=10^{-3}$", s=100)
+plt.xlabel("entropy")
 plt.ylabel("test loss")
-plt.legend()
+# plt.legend()
+plt.savefig("emission.pdf")
+# plt.yscale("log")
 # plt.loglog()
 
 # %%

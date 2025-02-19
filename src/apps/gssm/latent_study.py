@@ -1,3 +1,4 @@
+# %%
 import json
 import os
 from pathlib import Path
@@ -9,28 +10,7 @@ import yaml
 from nanollama.data.gssm import DataConfig, Node, OnlineDataLoader, init_dataloader_state
 from nanollama.model import Transformer, TransformerConfig
 from nanollama.utils import initialize_nested_object
-
-
-def read_indented_jsonl(filepath: str) -> list[dict]:
-    data = []
-    with open(filepath) as file:
-        content = file.read()
-
-    # split the content into individual JSON objects
-    json_objects = content.split("}\n{")
-
-    # adjust format
-    if json_objects:
-        json_objects[0] = json_objects[0] + "}"
-        json_objects[-1] = "{" + json_objects[-1]
-        for i in range(1, len(json_objects) - 1):
-            json_objects[i] = "{" + json_objects[i] + "}"
-
-    # parse each JSON object
-    for json_str in json_objects:
-        json_object = json.loads(json_str)
-        data.append(json_object)
-    return data
+from nanollama.visualization import read_indented_jsonl
 
 
 def get_observed_node(code_dir: str, exp: int, grid_id: int) -> Node:
@@ -77,6 +57,7 @@ def get_data(observed_node: Node, bsz: int, seq_len: int) -> dict[str, np.ndarra
     return data
 
 
+# %%
 save_dir = Path(os.path.expandvars("/checkpoint/$USER/icml/logs"))
 code_dir = Path(os.path.expandvars("$HOME/code/composable-llm/"))
 
@@ -106,3 +87,5 @@ model_config = initialize_nested_object(TransformerConfig, config["run_config"][
 model = Transformer(model_config)
 model = torch.compile(model)
 model.load_state_dict(torch.load(ckpt_path / "checkpoint.pth")["model"])
+
+# %%
