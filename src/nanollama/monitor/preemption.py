@@ -1,3 +1,15 @@
+"""
+Preemption Handler
+
+This file is useful to handle and requeue Slurm job that are being preempted.
+
+#### License
+This source code is licensed under the terms specified in the `LICENSE` file,
+located in the root directory of this repository.
+
+@ 2025, Meta
+"""
+
 import logging
 import os
 import signal

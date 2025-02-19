@@ -1,8 +1,7 @@
 """
 Wandb Logger
 
-License
--------
+#### License
 This source code is licensed under the terms specified in the `LICENSE` file,
 located in the root directory of this repository.
 
@@ -125,15 +124,7 @@ class WandbLogger:
         """Close wandb api."""
         if not self.active:
             return
-        # Handle exception
-        try:
-            if exc is not None:
-                # Log exception in wandb
-                wandb.finish(exit_code=1)
-            else:
-                wandb.finish()
-        except Exception as e:
-            logger.warning(e)
+        wandb.finish(exit_code=bool(exc))
 
 
 def jsonl_to_wandb(

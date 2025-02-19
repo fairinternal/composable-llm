@@ -1,8 +1,7 @@
 """
 Abstract class for context managers monitoring training runs.
 
-License
--------
+#### License
 This source code is licensed under the terms specified in the `LICENSE` file,
 located in the root directory of this repository.
 
@@ -27,7 +26,12 @@ class Monitor(ABC):
     @abstractmethod
     def __enter__(self) -> "Monitor":
         """Function called when entering context."""
-        pass
+        ...
+
+    @abstractmethod
+    def __exit__(self, exc: type[BaseException], value: BaseException, tb: TracebackType):
+        """Function called when exiting context"""
+        ...
 
     def __call__(self) -> None:
         """Call update function periodically."""
@@ -40,9 +44,4 @@ class Monitor(ABC):
     @abstractmethod
     def update(self) -> None:
         """Main function ran by the Manager."""
-        pass
-
-    @abstractmethod
-    def __exit__(self, exc: type[BaseException], value: BaseException, tb: TracebackType):
-        """Function called when exiting context"""
-        pass
+        ...

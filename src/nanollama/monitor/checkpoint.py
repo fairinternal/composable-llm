@@ -1,15 +1,20 @@
 """
 Checkpoint manager
 
-License
--------
+#### License
 This source code is licensed under the terms specified in the `LICENSE` file,
 located in the root directory of this repository.
 
 @ 2025, Meta
+
+#### Notes
+Checkpointing does not support `DCP` yet.
+See https://pytorch.org/tutorials/recipes/distributed_checkpoint_recipe.html
+
+Checkpointing is done `synchronously` in the main process, this may slow down the training process.
+See https://pytorch.org/tutorials/recipes/distributed_async_checkpoint_recipe.html.
 """
 
-import json
 import re
 import shutil
 from dataclasses import dataclass, field
@@ -19,10 +24,10 @@ from types import TracebackType
 
 import torch
 from torch import nn
-from torch.optim import Optimizer, lr_scheduler
+from torch.distributed.checkpoint.stateful import Stateful
+from torch.optim import Optimizer
 
 from ..distributed import get_rank, is_master_process
-from ..utils import TrainState
 from .monitor import Monitor
 
 logger = getLogger("nanollama")
@@ -44,25 +49,24 @@ class Checkpointer(Monitor):
     """
     Checkpoint manager
 
-    Attributes
-    ----------
-    period:
-        Number of updates between each checkpoint
-    keep_only:
-        Number of checkpoints to keep
-    path:
-        Path to the checkpoint directory
-    model:
-        Model to checkpoint
-    optimizer:
-        Optimizer to checkpoint
-    state:
-        Training state to checkpoint
-    saved:
-        Whether the latest model has been saved
+    ### Attributes
+    stateful_objects: various objects to checkpoints
+    period: number of updates between each checkpoint
+    keep_only: number of checkpoints to keep
+    path: path to the checkpoint directory
+    saved: whether the latest model has been saved
+
+    ### Params
+    config: configuration object
+    stateful_objects: various objects to checkpoint
+    model: model to checkpoint
+    optimizer: optimizer to checkpoint
+
+    #### Notes
+    `model` and `optimizer` are not passed in `stateful_objects` as they require special treatment.
     """
 
-    state_name = "train_state_{:05d}.json"
+    name = "{name}_{rank:05d}.pth"
     folder_name = "{:010d}"
     re_folder = r"\d{10}"
     re_digits = re.compile(r"\d+")
@@ -70,13 +74,13 @@ class Checkpointer(Monitor):
     def __init__(
         self,
         config: CheckpointConfig,
+        stateful_objects: dict[str, Stateful],
         model: nn.Module,
         optimizer: Optimizer,
-        scheduler: lr_scheduler.LambdaLR,
-        state: TrainState,
     ):
         super().__init__(config)
 
+        self.period = config.period
         self.keep_only = config.keep_only
         self.path = Path(config.path)
         self.path.mkdir(parents=True, exist_ok=True)
@@ -84,12 +88,17 @@ class Checkpointer(Monitor):
 
         # Create alias for the objects to monitor.
         self.model = model
-        self.optimizer = optimizer
-        self.scheduler = scheduler
-        self.state = state
+        self.stateful_objects = stateful_objects
+
+        self.stateful_objects.update({"model": model, "optimizer": optimizer})
+
+        # self.states.update({"model": DCPModelWrapper(model)})
+        # if optimizer is not None:
+        #     self.states.update({"optimizer": DCPOptimizerWrapper(model, optimizer)})
 
         self.device_rank = get_rank()
         self.saved_step = 0
+        self.step = 0
 
     @torch.no_grad()
     def __enter__(self) -> "Checkpointer":
@@ -100,22 +109,16 @@ class Checkpointer(Monitor):
         if not path:
             return self
 
-        logger.info("Reloading train state")
-        file_path = path / self.state_name.format(self.device_rank)
-        with open(file_path) as f:
-            train_state_dict = json.load(f)
-        self.state.load_state_dict(train_state_dict)
-        logger.info("Train state reloaded")
+        for name, object in self.stateful_objects.items():
+            logger.info(f"Reloading {name} state")
+            if name in ["model", "optimizer"]:
+                file_path = path / self.name.format(name=name, rank=0)
+            else:
+                file_path = path / self.name.format(name=name, rank=self.device_rank)
+            state_dict = torch.load(file_path)
+            object.load_state_dict(state_dict)
+            logger.info(f"{name} reloaded")
 
-        logger.info(f"Loading from: {str(path)}")
-        state_dict = torch.load(path / "checkpoint.pth", weights_only=True)
-        self.model.load_state_dict(state_dict["model"])
-        self.optimizer.load_state_dict(state_dict["optim"])
-        self.scheduler.load_state_dict(state_dict["scheduler"])
-        logger.info("Model, optimizer and scheduler reloaded")
-
-        if self.sync:
-            self.step = self.state.optim.step
         self.saved_step = self.step
 
         return self
@@ -124,39 +127,32 @@ class Checkpointer(Monitor):
         """
         Checkpoint model, optimizer, scheduler and training state
 
-        Parameters
-        ----------
-        eval:
-            Whether to save the checkpoint for evaluation
+        ### Parameters
+        eval: Whether to save the checkpoint for evaluation
         """
         # do not checkpoint twice
         if self.saved_step == self.step:
             return
 
-        save_dir = self.path / self.folder_name.format(self.state.optim.step)
-        save_dir.mkdir(parents=False, exist_ok=True)
+        path = self.path / self.folder_name.format(self.step)
+        path.mkdir(parents=False, exist_ok=True)
 
         # add evaluation flag, if needed
         if eval:
-            eval_flag = save_dir / "eval"
+            eval_flag = path / "eval"
             eval_flag.touch()
 
-        logger.info(f"Saving checkpoint at step {self.state.optim.step} to {str(save_dir)}")
+        logger.info(f"Saving checkpoint at step {self.step} to {str(path)}")
 
-        filename = self.state_name.format(self.device_rank)
-        with open(save_dir / filename, "w") as f:
-            json.dump(self.state.state_dict(), f, indent=2)
+        for name, object in self.stateful_objects.items():
+            # only save the model and optimizer once
+            if name in ["model", "optimizer"] and not is_master_process():
+                continue
+            logger.info(f"Saving {name} state")
+            file_path = path / self.name.format(name=name, rank=self.device_rank)
+            torch.save(object.state_dict(), file_path)
 
-        if is_master_process():
-            logger.info("Saving model, optimizer and scheduler")
-            state_dict = {
-                "model": self.model.state_dict(),
-                "optim": self.optimizer.state_dict(),
-                "scheduler": self.scheduler.state_dict(),
-            }
-            torch.save(state_dict, save_dir / "checkpoint.pth")
-            self._cleaning()
-
+        self._cleaning()
         self.saved_step = self.step
 
     @classmethod
@@ -223,8 +219,7 @@ class EvalCheckpointer:
         """
         Exit checkpoint context by remove `eval` flag
 
-        See Also
-        --------
+        #### See Also
         Checkpointer.update(eval=True)
         """
         eval_flag = self.save_dir / "eval"

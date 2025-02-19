@@ -1,8 +1,7 @@
 """
 Logging Managor
 
-License
--------
+#### License
 This source code is licensed under the terms specified in the `LICENSE` file,
 located in the root directory of this repository.
 
